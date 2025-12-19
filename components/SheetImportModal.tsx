@@ -1,127 +1,143 @@
 import React, { useState } from 'react';
-import { X, FileSpreadsheet, Play, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, FileSpreadsheet, Play, Loader2, AlertCircle } from 'lucide-react';
+import { extractSheetId, fetchSheetRows } from '../services/sheets';
 
 interface SheetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartProcess: (sheetId: string) => void;
-  progress: {
-    current: number;
-    total: number;
-    status: 'idle' | 'processing' | 'done' | 'error';
-    logs: string[];
-  };
+  onImport: (sheetId: string, rows: any[][], token: string) => void;
+  isDemoMode: boolean;
 }
 
-const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, onStartProcess, progress }) => {
+const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, onImport, isDemoMode }) => {
   const [url, setUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
+  const handleStart = async () => {
+    setError('');
+    
+    // DEMO BYPASS
+    if (isDemoMode) {
+        onImport('demo-sheet-id', [], 'demo-token');
+        onClose();
+        return;
+    }
+
+    const sheetId = extractSheetId(url);
+    if (!sheetId) {
+        setError('URL da planilha inválida.');
+        return;
+    }
+
+    const clientId = localStorage.getItem('google_client_id');
+    if (!clientId) {
+        setError('Client ID não configurado nas Configurações.');
+        return;
+    }
+
+    setIsLoading(true);
+
+    try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets',
+            callback: async (response: any) => {
+                if (response.error) {
+                    setError('Erro na autenticação Google.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    // Fetch rows immediately to validate and count
+                    const rows = await fetchSheetRows(response.access_token, sheetId);
+                    
+                    if (!rows || rows.length === 0) {
+                        setError('A planilha está vazia.');
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    // Pass data to App parent to handle background processing
+                    onImport(sheetId, rows, response.access_token);
+                    onClose(); // Close modal immediately
+                } catch (err: any) {
+                    setError('Erro ao ler planilha: ' + err.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+        });
+        client.requestAccessToken();
+
+    } catch (e: any) {
+        setError(e.message);
+        setIsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="bg-green-600/20 p-2 rounded-lg text-green-500">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Importar Google Sheets</h2>
-              <p className="text-xs text-slate-400">Automatize a criação e atualização de links</p>
+              <h2 className="text-xl font-bold text-white">Importar em Massa</h2>
+              <p className="text-xs text-slate-400">O processamento ocorrerá em segundo plano.</p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            disabled={progress.status === 'processing'}
-            className="text-slate-500 hover:text-white transition-colors disabled:opacity-50"
-          >
+          <button onClick={onClose} className="text-slate-500 hover:text-white">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 overflow-y-auto">
-          
-          {/* Instructions */}
-          {progress.status === 'idle' && (
+        <div className="p-6 space-y-6">
              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 text-sm">
-                <p className="font-semibold text-slate-300 mb-2">Instruções de Formatação:</p>
-                <p className="text-slate-400 mb-2">Sua planilha deve ter as seguintes colunas (na ordem):</p>
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <p className="font-semibold text-slate-300 mb-2">Instruções:</p>
+                <div className="flex flex-wrap gap-2 pb-2">
                     {['A: Palavra-chave', 'B: Nicho Host', 'C: Link Alvo', 'D: Texto Âncora', 'E: Nicho Alvo'].map(col => (
-                        <span key={col} className="px-3 py-1 bg-slate-800 rounded text-slate-300 whitespace-nowrap text-xs border border-slate-700">{col}</span>
+                        <span key={col} className="px-2 py-1 bg-slate-800 rounded text-slate-300 text-[10px] border border-slate-700">{col}</span>
                     ))}
                 </div>
-                <p className="text-slate-400 mt-2 text-xs">
-                    * A coluna <strong>F</strong> será preenchida automaticamente com o link do documento gerado.
+                <p className="text-slate-500 text-xs italic mt-2">
+                    A coluna F receberá o link do documento gerado.
                 </p>
              </div>
-          )}
 
-          {/* Input Area */}
-          {progress.status === 'idle' && (
             <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Link da Planilha ou ID</label>
-                <div className="flex gap-2">
-                    <input 
-                        type="text" 
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 outline-none focus:border-indigo-500 transition-colors"
-                    />
-                    <button 
-                        onClick={() => onStartProcess(url)}
-                        disabled={!url}
-                        className="bg-green-600 hover:bg-green-500 disabled:bg-slate-800 disabled:text-slate-600 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all"
-                    >
-                        <Play className="w-4 h-4 fill-current" />
-                        Iniciar
-                    </button>
-                </div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Link da Planilha Google</label>
+                <input 
+                    type="text" 
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 outline-none focus:border-indigo-500 transition-colors"
+                />
             </div>
-          )}
 
-          {/* Progress Area */}
-          {progress.status !== 'idle' && (
-            <div className="space-y-4">
-                <div className="flex justify-between text-sm font-medium mb-1">
-                    <span className="text-slate-300">Progresso</span>
-                    <span className="text-indigo-400">{progress.current} / {progress.total}</span>
+            {error && (
+                <div className="text-xs text-red-400 flex items-center gap-2 bg-red-900/10 p-3 rounded-lg border border-red-900/30">
+                    <AlertCircle className="w-4 h-4"/> {error}
                 </div>
-                <div className="w-full bg-slate-800 rounded-full h-2.5">
-                    <div 
-                        className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-                    ></div>
-                </div>
+            )}
 
-                {/* Logs Console */}
-                <div className="bg-black/50 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs space-y-2 border border-slate-800">
-                    {progress.logs.map((log, i) => (
-                        <div key={i} className={`flex items-start gap-2 ${log.includes('Erro') ? 'text-red-400' : log.includes('Sucesso') ? 'text-green-400' : 'text-slate-400'}`}>
-                            {log.includes('Processando') && <Loader2 className="w-3 h-3 animate-spin mt-0.5" />}
-                            {log.includes('Sucesso') && <CheckCircle2 className="w-3 h-3 mt-0.5" />}
-                            {log.includes('Erro') && <AlertCircle className="w-3 h-3 mt-0.5" />}
-                            <span>{log}</span>
-                        </div>
-                    ))}
-                    {progress.logs.length === 0 && <span className="text-slate-600">Aguardando início...</span>}
-                </div>
-
-                {progress.status === 'done' && (
-                     <div className="flex justify-center pt-4">
-                        <button onClick={onClose} className="text-white bg-slate-700 hover:bg-slate-600 px-6 py-2 rounded-lg text-sm font-medium">
-                            Fechar
-                        </button>
-                     </div>
-                )}
-            </div>
-          )}
-
+            <button 
+                onClick={handleStart}
+                disabled={isLoading || !url}
+                className="w-full bg-green-600 hover:bg-green-500 disabled:bg-slate-800 disabled:text-slate-600 text-white px-6 py-3.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
+            >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                {isLoading ? 'Conectando...' : 'Iniciar Processamento'}
+            </button>
         </div>
       </div>
     </div>

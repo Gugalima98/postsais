@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import PostForm from './components/PostForm';
 import ArticlePreview from './components/ArticlePreview';
 import Settings from './components/Settings';
 import SheetImportModal from './components/SheetImportModal';
+import BatchStatus from './components/BatchStatus';
 import { generateGuestPostContent } from './services/gemini';
 import { uploadToDrive, convertMarkdownToHtml } from './services/drive';
-import { extractSheetId, fetchSheetRows, updateSheetCell } from './services/sheets';
-import { AppMode, GeneratedArticle, GuestPostRequest } from './types';
+import { updateSheetCell } from './services/sheets';
+import { AppMode, GeneratedArticle, GuestPostRequest, QueueItem, BatchProgress } from './types';
 import { Trash2, AlertTriangle, CheckCircle2, Cloud, History, PenTool, FileSpreadsheet, FlaskConical } from 'lucide-react';
 
 // Declare global augmentation for window.google
@@ -17,12 +18,7 @@ declare global {
     }
 }
 
-// Utility for safe ID generation
-const generateId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-};
-
-// Utility for delay
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Simple mock for "Drive" download (local fallback)
@@ -37,7 +33,7 @@ const downloadAsDoc = (article: GeneratedArticle) => {
   document.body.removeChild(fileDownload);
 };
 
-// MOCK DATA FOR DEMO MODE
+// DEMO DATA
 const DEMO_ROWS = [
     ["Importância do Yoga no Trabalho", "Blog de RH e Carreira", "https://lojasports.com/kits-yoga", "kits de yoga corporativo", "E-commerce Esportivo"],
     ["Estratégias de Marketing Digital 2024", "Portal de Tecnologia", "https://agenciaxyz.com/seo", "consultoria de SEO", "Agência de Marketing"],
@@ -47,41 +43,38 @@ const DEMO_ROWS = [
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.SINGLE);
   
-  // Initialize articles from localStorage to persist data across refreshes
+  // Storage
   const [articles, setArticles] = useState<GeneratedArticle[]>(() => {
     try {
         const saved = localStorage.getItem('guestpost_articles');
-        if (saved) {
-            return JSON.parse(saved);
-        }
-    } catch (e) {
-        console.error("Failed to load history", e);
-    }
-    return [];
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
   });
 
+  // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [activeArticle, setActiveArticle] = useState<GeneratedArticle | null>(null);
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
-  
   const [isDemoMode, setIsDemoMode] = useState(false);
-
-  // Sheets Modal State
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
-  const [sheetProgress, setSheetProgress] = useState<{
-      current: number; 
-      total: number; 
-      status: 'idle' | 'processing' | 'done' | 'error';
-      logs: string[];
-  }>({ current: 0, total: 0, status: 'idle', logs: [] });
 
-  // Initialize Google Identity Services
+  // --- BACKGROUND BATCH PROCESSING STATE ---
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+  const [batchToken, setBatchToken] = useState<string | null>(null); // Store auth token for batch
+  const [batchProgress, setBatchProgress] = useState<BatchProgress>({
+    isActive: false,
+    total: 0,
+    processed: 0,
+    currentKeyword: '',
+    logs: []
+  });
+
+  // Init
   useEffect(() => {
     const initializeGoogle = () => {
-        if (window.google && window.google.accounts) {
-             console.log("Google Identity Services loaded");
-        }
+        if (window.google) console.log("Google Identity Services loaded");
     };
     if (window.google) initializeGoogle();
     else window.addEventListener('load', initializeGoogle);
@@ -90,9 +83,8 @@ const App: React.FC = () => {
     setIsDemoMode(checkDemo === 'true');
 
     return () => window.removeEventListener('load', initializeGoogle);
-  }, [mode]); // Re-check on mode change (settings save)
+  }, [mode]);
 
-  // Persist articles to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('guestpost_articles', JSON.stringify(articles));
   }, [articles]);
@@ -104,258 +96,152 @@ const App: React.FC = () => {
     }
   }, [notification]);
 
-  const addLog = (msg: string) => {
-      setSheetProgress(prev => ({...prev, logs: [...prev.logs, msg]}));
-  };
+  // --- BATCH WORKER (useEffect) ---
+  useEffect(() => {
+    const processNextItem = async () => {
+        if (queue.length === 0 || isProcessingBatch) return;
 
-  const handleSheetProcess = async (urlOrId: string) => {
-    // --- DEMO MODE BRANCH ---
-    if (isDemoMode) {
-        setSheetProgress({ current: 0, total: 0, status: 'processing', logs: ['[MODO DEMO] Iniciando simulação...'] });
+        setIsProcessingBatch(true);
+        const item = queue[0];
         
+        // Update Status UI
+        setBatchProgress(prev => ({
+            ...prev,
+            isActive: true,
+            currentKeyword: item.request.keyword,
+        }));
+
+        const addLog = (msg: string) => {
+            setBatchProgress(prev => ({ ...prev, logs: [...prev.logs, msg] }));
+        };
+
         try {
-            await delay(1000);
-            addLog('[MODO DEMO] Conectando à planilha simulada...');
-            await delay(1000);
+            addLog(`Iniciando: ${item.request.keyword}`);
+
+            // 1. Generate AI Content
+            let content = "";
+            let title = "";
             
-            const validRows = DEMO_ROWS;
-            setSheetProgress(prev => ({...prev, total: validRows.length, current: 0}));
-            addLog(`[MODO DEMO] Encontradas ${validRows.length} linhas para processar.`);
-
-            let processedCount = 0;
-
-            for (const row of validRows) {
-                // Mock Request
-                const req: GuestPostRequest = {
-                    id: generateId(),
-                    keyword: row[0],
-                    hostNiche: row[1],
-                    targetLink: row[2],
-                    anchorText: row[3],
-                    targetNiche: row[4]
-                };
-
-                addLog(`Processando: ${req.keyword}... (IA Gerando)`);
-                
-                // REAL AI CALL (To prove it works)
-                const content = await generateGuestPostContent(req);
+            if (isDemoMode) {
+                await delay(1500); // Simulate AI thinking
+                content = `# ${item.request.keyword} (Demo)\n\nConteúdo gerado automaticamente...`;
+                title = item.request.keyword;
+            } else {
+                content = await generateGuestPostContent(item.request);
                 const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/^(.+)$/m);
-                const title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : req.keyword;
-
-                addLog(`[MODO DEMO] Salvando no Drive (Simulado)...`);
-                await delay(800);
-
-                // Mock Update Sheet
-                addLog(`[MODO DEMO] Atualizando planilha...`);
-                await delay(500);
-
-                 // Update Local State
-                 const newArticle: GeneratedArticle = {
-                    id: generateId(),
-                    requestId: req.id,
-                    title: title,
-                    content: content,
-                    createdAt: new Date(),
-                    status: 'completed',
-                    driveUrl: 'https://docs.google.com/demo-doc-link', // Mock link
-                    driveId: 'demo-id'
-                };
-                setArticles(prev => [newArticle, ...prev]);
-
-                addLog(`Sucesso: "${req.keyword}" - Link salvo.`);
-
-                processedCount++;
-                setSheetProgress(prev => ({...prev, current: processedCount}));
+                title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : item.request.keyword;
             }
 
-            addLog('Processamento finalizado!');
-            setSheetProgress(prev => ({...prev, status: 'done'}));
-            setNotification({ msg: 'Simulação concluída com sucesso!', type: 'success' });
+            addLog(`Artigo gerado. Salvando...`);
 
-        } catch (err: any) {
-             setSheetProgress(prev => ({...prev, status: 'error', logs: [...prev.logs, `Erro: ${err.message}`]}));
+            // 2. Upload to Drive & Update Sheet
+            let driveUrl = "";
+            let driveId = "";
+
+            if (isDemoMode) {
+                await delay(1000);
+                driveUrl = "https://docs.google.com/demo-link";
+                driveId = "demo-id";
+            } else if (batchToken) {
+                const htmlContent = convertMarkdownToHtml(content, title);
+                const driveResult = await uploadToDrive(batchToken, title, htmlContent);
+                driveUrl = driveResult.webViewLink;
+                driveId = driveResult.id;
+                
+                addLog(`Atualizando planilha...`);
+                await updateSheetCell(batchToken, item.sheetId, item.rowIndex, driveUrl);
+            } else {
+                throw new Error("Token de autenticação perdido.");
+            }
+
+            // 3. Save to History
+            const newArticle: GeneratedArticle = {
+                id: generateId(),
+                requestId: item.request.id,
+                title: title,
+                content: content,
+                createdAt: new Date(),
+                status: 'completed',
+                driveUrl,
+                driveId
+            };
+            
+            setArticles(prev => [newArticle, ...prev]);
+            addLog(`Concluído: ${item.request.keyword}`);
+
+        } catch (error: any) {
+            console.error(error);
+            addLog(`Erro em "${item.request.keyword}": ${error.message}`);
+        } finally {
+            // Remove item from queue and update progress counts
+            setQueue(prev => prev.slice(1));
+            setBatchProgress(prev => ({
+                ...prev,
+                processed: prev.processed + 1
+            }));
+            setIsProcessingBatch(false);
         }
-        return;
-    }
-    // --- END DEMO MODE ---
+    };
 
-    const sheetId = extractSheetId(urlOrId);
-    if (!sheetId) {
-        setNotification({ msg: 'ID da planilha inválido.', type: 'error' });
-        return;
-    }
+    processNextItem();
+  }, [queue, isProcessingBatch, batchToken, isDemoMode]);
 
-    const clientId = localStorage.getItem('google_client_id');
-    if (!clientId) {
-        setIsSheetModalOpen(false);
-        setNotification({ msg: 'Configure o Client ID primeiro.', type: 'error' });
-        setMode(AppMode.SETTINGS);
-        return;
-    }
 
-    setSheetProgress({ current: 0, total: 0, status: 'processing', logs: ['Iniciando autenticação Google...'] });
+  // Handler called by the Modal when user clicks "Start"
+  const handleBatchImport = (sheetId: string, rows: any[][], token: string) => {
+    // 1. Transform rows into Queue Items
+    let newQueue: QueueItem[] = [];
+    
+    // Check if it's demo or real
+    const rowsToProcess = isDemoMode ? DEMO_ROWS : rows;
 
-    const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets',
-        callback: async (response: any) => {
-            if (response.error) {
-                setSheetProgress(prev => ({...prev, status: 'error', logs: [...prev.logs, 'Erro na autenticação.']}));
-                return;
-            }
+    rowsToProcess.forEach((row, index) => {
+        // Simple validation: Needs at least keyword (col 0)
+        if (!row[0]) return;
 
-            try {
-                addLog('Lendo planilha...');
-                const rows = await fetchSheetRows(response.access_token, sheetId);
-                
-                if (rows.length === 0) {
-                    addLog('Planilha vazia ou sem dados válidos.');
-                    setSheetProgress(prev => ({...prev, status: 'done'}));
-                    return;
-                }
+        const req: GuestPostRequest = {
+            id: generateId(),
+            keyword: row[0],
+            hostNiche: row[1] || 'Geral',
+            targetLink: row[2] || '#',
+            anchorText: row[3] || 'link',
+            targetNiche: row[4] || 'Geral'
+        };
 
-                // Filter valid rows (basic check)
-                const validRows = rows.map((row: any[], index: number) => ({ row, index })).filter(item => item.row.length >= 1);
-                
-                setSheetProgress(prev => ({...prev, total: validRows.length, current: 0}));
-                addLog(`Encontradas ${validRows.length} linhas para processar.`);
-
-                let processedCount = 0;
-
-                for (const item of validRows) {
-                    const { row, index } = item;
-                    // Format: [Keyword, HostNiche, TargetLink, AnchorText, TargetNiche]
-                    // If row has less than 5 cols, skip or handle safely
-                    const req: GuestPostRequest = {
-                        id: generateId(),
-                        keyword: row[0] || 'Sem Título',
-                        hostNiche: row[1] || 'Geral',
-                        targetLink: row[2] || '#',
-                        anchorText: row[3] || 'link',
-                        targetNiche: row[4] || 'Geral'
-                    };
-
-                    addLog(`Processando: ${req.keyword}...`);
-
-                    try {
-                        // 1. Generate Content
-                        const content = await generateGuestPostContent(req);
-                        
-                        const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/^(.+)$/m);
-                        const title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : req.keyword;
-
-                        // 2. Upload to Drive
-                        const htmlContent = convertMarkdownToHtml(content, title);
-                        const driveResult = await uploadToDrive(response.access_token, title, htmlContent);
-
-                        // 3. Update Sheet
-                        await updateSheetCell(response.access_token, sheetId, index, driveResult.webViewLink);
-                        
-                        // 4. Update Local State
-                        const newArticle: GeneratedArticle = {
-                            id: generateId(),
-                            requestId: req.id,
-                            title: title,
-                            content: content,
-                            createdAt: new Date(),
-                            status: 'completed',
-                            driveUrl: driveResult.webViewLink,
-                            driveId: driveResult.id
-                        };
-                        setArticles(prev => [newArticle, ...prev]);
-
-                        addLog(`Sucesso: "${req.keyword}" - Link salvo na planilha.`);
-
-                    } catch (err: any) {
-                        console.error(err);
-                        addLog(`Erro em "${req.keyword}": ${err.message}`);
-                    }
-
-                    processedCount++;
-                    setSheetProgress(prev => ({...prev, current: processedCount}));
-                }
-
-                addLog('Processamento finalizado!');
-                setSheetProgress(prev => ({...prev, status: 'done'}));
-                setNotification({ msg: 'Importação e geração concluída!', type: 'success' });
-
-            } catch (err: any) {
-                console.error(err);
-                setSheetProgress(prev => ({...prev, status: 'error', logs: [...prev.logs, `Erro fatal: ${err.message}`]}));
-            }
-        },
+        newQueue.push({
+            id: generateId(),
+            request: req,
+            rowIndex: index, // Used for 'sheetRow' calculation later
+            sheetId: sheetId,
+            status: 'pending'
+        });
     });
-    client.requestAccessToken();
+
+    if (newQueue.length === 0) {
+        setNotification({ msg: 'Nenhuma linha válida encontrada para processar.', type: 'error' });
+        return;
+    }
+
+    // 2. Set State to start processing
+    setBatchToken(token); // Store token for the worker
+    setQueue(newQueue);
+    setBatchProgress({
+        isActive: true,
+        total: newQueue.length,
+        processed: 0,
+        currentKeyword: '',
+        logs: [`Importado ${newQueue.length} linhas. Iniciando fila...`]
+    });
+
+    setNotification({ msg: 'Processamento iniciado em segundo plano!', type: 'success' });
   };
 
 
-  const handleSaveToDrive = (article: GeneratedArticle) => {
-    // --- DEMO MODE BRANCH ---
-    if (isDemoMode) {
-        setIsUploading(true);
-        setTimeout(() => {
-            const updatedArticles = articles.map(a => 
-                a.id === article.id ? { ...a, driveUrl: 'https://docs.google.com/demo', driveId: 'demo' } : a
-            );
-            setArticles(updatedArticles);
-            if (activeArticle?.id === article.id) {
-                setActiveArticle({ ...article, driveUrl: 'https://docs.google.com/demo', driveId: 'demo' });
-            }
-            setIsUploading(false);
-            setNotification({ msg: '[DEMO] Salvo com sucesso (Simulado)!', type: 'success' });
-        }, 1500);
-        return;
-    }
-    // --- END DEMO MODE ---
-
-    const clientId = localStorage.getItem('google_client_id');
-    if (!clientId) {
-        setNotification({ msg: 'Configure o Client ID nas Configurações primeiro.', type: 'error' });
-        setMode(AppMode.SETTINGS);
-        return;
-    }
-
-    const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: async (response: any) => {
-            if (response.error) {
-                console.error(response);
-                setNotification({ msg: 'Erro na autenticação Google.', type: 'error' });
-                return;
-            }
-            setIsUploading(true);
-            try {
-                const htmlContent = convertMarkdownToHtml(article.content, article.title);
-                const result = await uploadToDrive(response.access_token, article.title, htmlContent);
-                
-                const updatedArticles = articles.map(a => 
-                    a.id === article.id ? { ...a, driveUrl: result.webViewLink, driveId: result.id } : a
-                );
-                setArticles(updatedArticles);
-                
-                if (activeArticle?.id === article.id) {
-                    setActiveArticle({ ...article, driveUrl: result.webViewLink, driveId: result.id });
-                }
-
-                setNotification({ msg: 'Salvo no Google Drive com sucesso!', type: 'success' });
-            } catch (error: any) {
-                console.error(error);
-                setNotification({ msg: `Erro no upload: ${error.message}`, type: 'error' });
-            } finally {
-                setIsUploading(false);
-            }
-        },
-    });
-    client.requestAccessToken();
-  };
-
-
+  // Single Post Generation
   const handleGenerate = async (req: GuestPostRequest) => {
     setIsLoading(true);
     try {
       const content = await generateGuestPostContent(req);
-      
       const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/^(.+)$/m);
       const title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : req.keyword;
 
@@ -369,7 +255,7 @@ const App: React.FC = () => {
       };
 
       setArticles(prev => [newArticle, ...prev]);
-      setActiveArticle(newArticle); // This triggers the view switch
+      setActiveArticle(newArticle);
       setNotification({ msg: 'Artigo gerado com sucesso!', type: 'success' });
     } catch (error) {
       console.error(error);
@@ -379,34 +265,75 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveToDrive = (article: GeneratedArticle) => {
+    if (isDemoMode) {
+        setIsUploading(true);
+        setTimeout(() => {
+            const updated = articles.map(a => a.id === article.id ? { ...a, driveUrl: 'https://docs.google.com/demo', driveId: 'demo' } : a);
+            setArticles(updated);
+            if (activeArticle?.id === article.id) setActiveArticle({ ...article, driveUrl: 'https://docs.google.com/demo', driveId: 'demo' });
+            setIsUploading(false);
+            setNotification({ msg: '[DEMO] Salvo!', type: 'success' });
+        }, 1000);
+        return;
+    }
+
+    const clientId = localStorage.getItem('google_client_id');
+    if (!clientId) {
+        setNotification({ msg: 'Configure o Client ID nas Configurações.', type: 'error' });
+        setMode(AppMode.SETTINGS);
+        return;
+    }
+
+    const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: async (response: any) => {
+            if (response.error) {
+                setNotification({ msg: 'Erro na autenticação.', type: 'error' });
+                return;
+            }
+            setIsUploading(true);
+            try {
+                const html = convertMarkdownToHtml(article.content, article.title);
+                const result = await uploadToDrive(response.access_token, article.title, html);
+                const updated = articles.map(a => a.id === article.id ? { ...a, driveUrl: result.webViewLink, driveId: result.id } : a);
+                setArticles(updated);
+                if (activeArticle?.id === article.id) setActiveArticle({ ...article, driveUrl: result.webViewLink, driveId: result.id });
+                setNotification({ msg: 'Salvo no Drive!', type: 'success' });
+            } catch (error: any) {
+                setNotification({ msg: `Erro: ${error.message}`, type: 'error' });
+            } finally {
+                setIsUploading(false);
+            }
+        },
+    });
+    client.requestAccessToken();
+  };
+
+  // Render Helpers
   const renderContent = () => {
-    switch (mode) {
-      case AppMode.SETTINGS:
-          return <Settings onSave={() => {
-              setNotification({ msg: 'Configurações salvas!', type: 'success' });
-              // Refresh demo state in app
+    if (mode === AppMode.SETTINGS) {
+        return <Settings onSave={() => {
               const checkDemo = localStorage.getItem('guestpost_demo_mode');
               setIsDemoMode(checkDemo === 'true');
               setMode(AppMode.SINGLE);
+              setNotification({ msg: 'Salvo!', type: 'success' });
           }} />;
+    }
 
-      case AppMode.SINGLE:
-        // CONDITIONAL RENDERING: EITHER FORM OR ARTICLE
+    if (mode === AppMode.SINGLE) {
         if (activeArticle) {
             return (
-                <div className="h-full">
-                    <ArticlePreview 
-                        article={activeArticle} 
-                        onDownloadDoc={downloadAsDoc} 
-                        onSaveToDrive={handleSaveToDrive}
-                        onBack={() => setActiveArticle(null)}
-                        isUploading={isUploading}
-                    />
-                </div>
+                <ArticlePreview 
+                    article={activeArticle} 
+                    onDownloadDoc={downloadAsDoc} 
+                    onSaveToDrive={handleSaveToDrive}
+                    onBack={() => setActiveArticle(null)}
+                    isUploading={isUploading}
+                />
             );
         }
-
-        // Default: Show Form (Centered)
         return (
           <div className="max-w-3xl mx-auto h-full flex flex-col justify-center py-10 relative">
             <div className="mb-8 text-center">
@@ -418,12 +345,8 @@ const App: React.FC = () => {
                     Preencha as informações abaixo e nossa IA criará um artigo completo, otimizado e formatado em segundos.
                 </p>
                 
-                {/* NEW: Sheets Import Trigger */}
                 <button 
-                    onClick={() => {
-                        setSheetProgress({ current: 0, total: 0, status: 'idle', logs: [] });
-                        setIsSheetModalOpen(true);
-                    }}
+                    onClick={() => setIsSheetModalOpen(true)}
                     className={`inline-flex items-center gap-2 px-4 py-2 ${isDemoMode ? 'bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 border-purple-600/30' : 'bg-green-600/10 hover:bg-green-600/20 text-green-400 border-green-600/30'} border rounded-lg text-sm font-medium transition-all hover:scale-105`}
                 >
                     {isDemoMode ? <FlaskConical className="w-4 h-4" /> : <FileSpreadsheet className="w-4 h-4" />}
@@ -434,86 +357,54 @@ const App: React.FC = () => {
             <PostForm onSubmit={handleGenerate} isLoading={isLoading} />
             
             <div className="mt-8 flex justify-center">
-                <button 
-                    onClick={() => setMode(AppMode.SETTINGS)}
-                    className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-2 transition-colors"
-                >
-                    <Cloud className="w-4 h-4" />
-                    Configurar integração com Google Drive
+                <button onClick={() => setMode(AppMode.SETTINGS)} className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-2 transition-colors">
+                    <Cloud className="w-4 h-4" /> Configurar Google Drive
                 </button>
             </div>
-            
-            {/* Demo Indicator */}
             {isDemoMode && (
                 <div className="absolute top-0 right-0 m-4 text-xs font-bold text-indigo-400 bg-indigo-900/30 px-3 py-1 rounded-full border border-indigo-500/30 flex items-center gap-2">
-                    <FlaskConical className="w-3 h-3"/> MODO DEMO ATIVO
+                    <FlaskConical className="w-3 h-3"/> MODO DEMO
                 </div>
             )}
           </div>
         );
+    }
 
-      case AppMode.HISTORY:
+    if (mode === AppMode.HISTORY) {
         return (
           <div className="space-y-6 pt-6">
             <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">Histórico</h2>
-                </div>
-                <button 
-                    onClick={() => setArticles([])}
-                    className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-red-900/20 transition-colors"
-                >
-                    <Trash2 className="w-4 h-4" /> Limpar Tudo
+                <h2 className="text-2xl font-bold text-white">Histórico</h2>
+                <button onClick={() => setArticles([])} className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" /> Limpar
                 </button>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {articles.map(article => (
-                    <div key={article.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-indigo-500/30 transition-all group flex flex-col justify-between h-[250px]">
+                    <div key={article.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-indigo-500/30 transition-all flex flex-col justify-between h-[250px]">
                         <div>
                             <div className="flex justify-between items-start mb-3">
                                 <h3 className="font-semibold text-lg text-slate-200 line-clamp-2">{article.title}</h3>
                             </div>
-                            <p className="text-slate-500 text-sm mb-4 line-clamp-3">
-                                {article.content.slice(0, 150)}...
-                            </p>
+                            <p className="text-slate-500 text-sm mb-4 line-clamp-3">{article.content.slice(0, 150)}...</p>
                         </div>
-                        <div className="flex justify-between items-center pt-4 border-t border-slate-800">
-                             <div className="flex gap-2 w-full">
-                                <button 
-                                    onClick={() => {
-                                        setActiveArticle(article);
-                                        setMode(AppMode.SINGLE);
-                                    }}
-                                    className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-colors flex-1"
-                                >
-                                    Ver
-                                </button>
-                                {article.driveUrl ? (
-                                    <a 
-                                        href={article.driveUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs bg-emerald-600/10 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-600/20 px-3 py-1.5 rounded-lg transition-colors flex-1 text-center flex items-center justify-center gap-1"
-                                    >
-                                        <Cloud className="w-3 h-3"/> Drive
-                                    </a>
-                                ) : (
-                                    <button
-                                        onClick={() => handleSaveToDrive(article)}
-                                        className="text-xs bg-blue-600/10 hover:bg-blue-600 hover:text-white text-blue-400 border border-blue-600/20 px-3 py-1.5 rounded-lg transition-colors flex-1 text-center"
-                                    >
-                                        Salvar
-                                    </button>
-                                )}
-                             </div>
+                        <div className="flex gap-2 w-full pt-4 border-t border-slate-800">
+                            <button onClick={() => { setActiveArticle(article); setMode(AppMode.SINGLE); }} className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition-colors flex-1">Ver</button>
+                            {article.driveUrl ? (
+                                <a href={article.driveUrl} target="_blank" rel="noreferrer" className="text-xs bg-emerald-600/10 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-600/20 px-3 py-1.5 rounded-lg transition-colors flex-1 text-center flex items-center justify-center gap-1">
+                                    <Cloud className="w-3 h-3"/> Drive
+                                </a>
+                            ) : (
+                                <button onClick={() => handleSaveToDrive(article)} className="text-xs bg-blue-600/10 hover:bg-blue-600 hover:text-white text-blue-400 border border-blue-600/20 px-3 py-1.5 rounded-lg transition-colors flex-1 text-center">Salvar</button>
+                            )}
                         </div>
                     </div>
                 ))}
                 {articles.length === 0 && (
                     <div className="col-span-full py-20 text-center text-slate-600 bg-slate-900/30 rounded-2xl border-2 border-dashed border-slate-800">
                         <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                        <p>Nenhum artigo gerado ainda.</p>
+                        <p>Nenhum artigo.</p>
                     </div>
                 )}
             </div>
@@ -524,22 +415,24 @@ const App: React.FC = () => {
 
   return (
     <Layout currentMode={mode} setMode={setMode} isFullWidth={mode === AppMode.SINGLE && activeArticle !== null}>
-        {/* Toast Notification */}
         {notification && (
-            <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce-in ${
-                notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`}>
+            <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                 {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5"/> : <AlertTriangle className="w-5 h-5"/>}
                 <span className="font-medium">{notification.msg}</span>
             </div>
         )}
         
-        {/* Sheet Import Modal */}
+        {/* Background Status Widget */}
+        <BatchStatus 
+            progress={batchProgress} 
+            onClose={() => setBatchProgress(prev => ({ ...prev, isActive: false, processed: 0, total: 0, logs: [] }))} 
+        />
+
         <SheetImportModal 
             isOpen={isSheetModalOpen}
             onClose={() => setIsSheetModalOpen(false)}
-            onStartProcess={handleSheetProcess}
-            progress={sheetProgress}
+            onImport={handleBatchImport}
+            isDemoMode={isDemoMode}
         />
 
         {renderContent()}

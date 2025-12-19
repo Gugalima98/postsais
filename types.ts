@@ -23,3 +23,20 @@ export enum AppMode {
   HISTORY = 'HISTORY',
   SETTINGS = 'SETTINGS'
 }
+
+export interface QueueItem {
+  id: string;
+  request: GuestPostRequest;
+  rowIndex: number; // Para atualizar a planilha depois
+  sheetId: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  error?: string;
+}
+
+export interface BatchProgress {
+  isActive: boolean;
+  total: number;
+  processed: number;
+  currentKeyword: string;
+  logs: string[];
+}
