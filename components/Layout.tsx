@@ -20,11 +20,19 @@ const Layout: React.FC<LayoutProps> = ({ children, currentMode, setMode, isFullW
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden relative">
       
-      {/* Mobile/Desktop Header Trigger */}
-      <div className="absolute top-4 left-4 z-50">
+      {/* Mobile/Desktop Header Trigger - Animating Position */}
+      <div 
+        className={`absolute top-4 z-50 transition-all duration-300 ease-in-out ${
+            isSidebarOpen ? 'left-60' : 'left-4'
+        }`}
+      >
         <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 bg-slate-900/50 hover:bg-slate-800 backdrop-blur border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all shadow-lg"
+            className={`p-2 rounded-lg transition-all ${
+                isSidebarOpen 
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800' // Clean look when open (inside sidebar)
+                : 'bg-slate-900/50 hover:bg-slate-800 backdrop-blur border border-slate-700 text-slate-300 hover:text-white shadow-lg' // Button look when closed
+            }`}
         >
             {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
