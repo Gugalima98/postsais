@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Key, AlertCircle, LogIn, CheckCircle2, XCircle, FlaskConical } from 'lucide-react';
+import { Save, Key, AlertCircle, LogIn, CheckCircle2, XCircle, FlaskConical, Plus, Trash2, ShieldCheck } from 'lucide-react';
 
 interface SettingsProps {
   onSave: () => void;
@@ -11,20 +11,50 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Gemini Keys State
+  const [geminiKeys, setGeminiKeys] = useState<string[]>([]);
+  const [newKey, setNewKey] = useState('');
+
   useEffect(() => {
-    const stored = localStorage.getItem('google_client_id');
-    if (stored) setClientId(stored);
+    // Load Drive Client ID
+    const storedClientId = localStorage.getItem('google_client_id');
+    if (storedClientId) setClientId(storedClientId);
     
+    // Load Demo Mode
     const demo = localStorage.getItem('guestpost_demo_mode');
     setIsDemo(demo === 'true');
+
+    // Load Gemini Keys
+    try {
+        const storedKeys = localStorage.getItem('guestpost_gemini_keys');
+        if (storedKeys) setGeminiKeys(JSON.parse(storedKeys));
+    } catch (e) {
+        setGeminiKeys([]);
+    }
   }, []);
 
   const handleSave = () => {
     localStorage.setItem('guestpost_demo_mode', String(isDemo));
+    
     if (clientId.trim()) {
       localStorage.setItem('google_client_id', clientId.trim());
     }
+    
+    // Save Gemini Keys
+    localStorage.setItem('guestpost_gemini_keys', JSON.stringify(geminiKeys));
+
     onSave();
+  };
+
+  const addGeminiKey = () => {
+    if (newKey.trim() && !geminiKeys.includes(newKey.trim())) {
+        setGeminiKeys([...geminiKeys, newKey.trim()]);
+        setNewKey('');
+    }
+  };
+
+  const removeGeminiKey = (keyToRemove: string) => {
+    setGeminiKeys(geminiKeys.filter(k => k !== keyToRemove));
   };
 
   const handleTestConnection = () => {
@@ -61,7 +91,6 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                     setErrorMsg('Erro na autenticação: ' + (response.error.message || response.error));
                 } else {
                     setStatus('success');
-                    // We don't need to store the token here, just verifying the flow works
                 }
             },
         });
@@ -76,13 +105,13 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 pb-20">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Configurações</h2>
-        <p className="text-slate-400">Configure a integração com o Google Drive.</p>
+        <p className="text-slate-400">Gerencie suas credenciais de IA e Google Drive.</p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-8">
         
         {/* Demo Mode Toggle */}
         <div className="flex items-start gap-4 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl">
@@ -100,23 +129,84 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                     </button>
                 </div>
                 <p className="text-sm text-slate-300">
-                    Ative para testar o fluxo completo usando dados simulados, sem precisar configurar o Google Cloud OAuth agora.
+                    Ative para testar o fluxo completo usando dados simulados, sem precisar de chaves reais.
                 </p>
              </div>
         </div>
 
-        <div className={`space-y-6 transition-opacity ${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-            {/* Step 1: Client ID */}
+        <div className={`space-y-8 transition-opacity ${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+            
+            {/* GEMINI API KEYS SECTION */}
+            <div className="flex items-start gap-4">
+                <div className="p-3 bg-slate-800 rounded-lg">
+                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div className="flex-1 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-white">Chaves Gemini API (Rotação)</h3>
+                        <p className="text-sm text-slate-400 mt-1">
+                            Adicione múltiplas chaves do <a href="https://aistudio.google.com/" target="_blank" className="text-indigo-400 hover:underline">Google AI Studio</a>. 
+                            O sistema irá rotacionar automaticamente caso uma chave atinja o limite de cota.
+                        </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={newKey}
+                            onChange={(e) => setNewKey(e.target.value)}
+                            placeholder="Cole sua API Key aqui (AIzaSy...)"
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-4 text-slate-200 focus:ring-2 focus:ring-emerald-500/50 outline-none font-mono text-sm"
+                        />
+                        <button 
+                            onClick={addGeminiKey}
+                            disabled={!newKey}
+                            className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white px-4 rounded-lg transition-colors flex items-center justify-center"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {geminiKeys.length > 0 && (
+                        <div className="bg-slate-950/50 rounded-lg border border-slate-800 overflow-hidden">
+                            {geminiKeys.map((key, index) => (
+                                <div key={index} className="flex justify-between items-center p-3 border-b border-slate-800 last:border-0 hover:bg-slate-800/50 transition-colors group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                        <code className="text-xs text-slate-400 font-mono">
+                                            {key.substring(0, 8)}...{key.substring(key.length - 6)}
+                                        </code>
+                                    </div>
+                                    <button 
+                                        onClick={() => removeGeminiKey(key)}
+                                        className="text-slate-600 hover:text-red-400 transition-colors p-1"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {geminiKeys.length === 0 && (
+                        <div className="text-xs text-yellow-500 bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/20">
+                            Nenhuma chave salva. O sistema tentará usar a chave padrão da Vercel (se configurada).
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="h-px bg-slate-800 w-full"></div>
+
+            {/* GOOGLE DRIVE OAUTH */}
             <div className="flex items-start gap-4">
             <div className="p-3 bg-slate-800 rounded-lg">
                 <Key className="w-6 h-6 text-slate-400" />
             </div>
             <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white">1. Configurar Google OAuth</h3>
+                <h3 className="text-lg font-semibold text-white">Google Drive OAuth (Client ID)</h3>
                 <p className="text-sm text-slate-400 mt-1 mb-4">
-                Para salvar arquivos, você precisa de um <strong>Client ID</strong> do Google Cloud.
-                <br/>
-                <a href="https://console.cloud.google.com/" target="_blank" className="text-indigo-400 underline hover:text-indigo-300">Criar ID no Google Console</a>
+                Necessário para criar arquivos Google Docs na sua conta.
                 </p>
                 
                 <label className="block text-xs font-medium text-slate-500 mb-1">CLIENT ID</label>
@@ -128,41 +218,19 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg py-3 px-4 text-slate-200 focus:ring-2 focus:ring-indigo-500/50 outline-none font-mono text-sm mb-2"
                 />
                 
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 flex gap-3">
-                    <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                    <div className="text-xs text-yellow-200/80">
-                        Lembre-se de adicionar a URL deste site nas <strong>"Origens JavaScript autorizadas"</strong> no console do Google.
-                    </div>
-                </div>
-            </div>
-            </div>
-
-            <div className="h-px bg-slate-800 w-full"></div>
-
-            {/* Step 2: Connection Test */}
-            <div className="flex items-start gap-4">
-                <div className="p-3 bg-slate-800 rounded-lg">
-                    <LogIn className="w-6 h-6 text-slate-400" />
-                </div>
-                <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white">2. Conectar Conta</h3>
-                    <p className="text-sm text-slate-400 mt-1 mb-4">
-                        Teste a conexão para autorizar o aplicativo a criar arquivos no seu Google Drive.
-                    </p>
-                    
-                    <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 mt-4">
                         <button
                             onClick={handleTestConnection}
                             disabled={!clientId || status === 'loading'}
                             className={`
-                                flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all
+                                flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all text-sm
                                 ${status === 'success' 
                                     ? 'bg-green-600/20 text-green-400 border border-green-600/30 cursor-default' 
                                     : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'}
                             `}
                         >
                             {status === 'loading' && <div className="animate-spin w-4 h-4 border-2 border-current rounded-full border-t-transparent"></div>}
-                            {status === 'idle' && 'Testar Conexão com Google'}
+                            {status === 'idle' && <><LogIn className="w-4 h-4"/> Testar Conexão com Google</>}
                             {status === 'success' && <><CheckCircle2 className="w-4 h-4"/> Conectado com Sucesso</>}
                             {status === 'error' && 'Tentar Novamente'}
                         </button>
@@ -173,7 +241,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                             </div>
                         )}
                     </div>
-                </div>
+            </div>
             </div>
         </div>
 
@@ -184,7 +252,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
         >
             <Save className="w-4 h-4" />
-            Salvar e Voltar
+            Salvar Configurações
         </button>
 
       </div>
