@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { FileText, Link as LinkIcon, ArrowRight, Globe, Layout, Type, Image as ImageIcon, CheckCircle, Loader2 } from 'lucide-react';
-import { extractSheetId } from '../services/sheets'; // Reusing the ID extractor logic as it works for /d/ID/ patterns
+import React, { useState, useRef } from 'react';
+import { 
+    FileText, Link as LinkIcon, ArrowRight, Globe, Layout, Type, 
+    Image as ImageIcon, CheckCircle, Loader2, Bold, Italic, 
+    List, Heading1, Heading2, Heading3, Quote, Undo, Redo 
+} from 'lucide-react';
+import { extractSheetId } from '../services/sheets';
 import { getGoogleDocContent } from '../services/drive';
 
 const WordpressPublisher: React.FC = () => {
@@ -16,10 +20,38 @@ const WordpressPublisher: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Editor Refs
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- EDITOR TOOLBAR LOGIC ---
+  const insertFormat = (prefix: string, suffix: string = '') => {
+      if (!textareaRef.current) return;
+      
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      const text = textareaRef.current.value;
+      
+      const before = text.substring(0, start);
+      const selection = text.substring(start, end);
+      const after = text.substring(end);
+      
+      const newText = before + prefix + selection + suffix + after;
+      
+      setContent(newText);
+      
+      // Reset focus and cursor
+      setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(start + prefix.length, end + prefix.length);
+          }
+      }, 0);
+  };
+
   // Handle Google Doc Import
   const handleImportGDoc = async () => {
     setError('');
-    const docId = extractSheetId(gdocLink); // Reusing logic, extracts /d/XXXX/
+    const docId = extractSheetId(gdocLink); 
     
     if (!docId) {
         setError('Link do Google Docs inválido.');
@@ -37,7 +69,6 @@ const WordpressPublisher: React.FC = () => {
     try {
         const client = window.google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            // We need drive.readonly to read the doc content
             scope: 'https://www.googleapis.com/auth/drive.readonly',
             callback: async (response: any) => {
                 if (response.error) {
@@ -47,16 +78,17 @@ const WordpressPublisher: React.FC = () => {
                 }
 
                 try {
-                    const text = await getGoogleDocContent(response.access_token, docId);
-                    // Try to guess title from first line
-                    const lines = text.split('\n');
+                    const markdown = await getGoogleDocContent(response.access_token, docId);
+                    
+                    // Simple heuristic to extract title if found in first lines
                     let extractedTitle = "Sem Título";
-                    let extractedContent = text;
+                    let extractedContent = markdown;
 
-                    if (lines.length > 0 && lines[0].trim().length > 0) {
-                        extractedTitle = lines[0].replace(/^#+\s*/, '').trim();
-                        // Remove title from content if it looks like a header
-                        extractedContent = lines.slice(1).join('\n').trim();
+                    const titleMatch = markdown.match(/^# (.*$)/m);
+                    if (titleMatch) {
+                        extractedTitle = titleMatch[1].trim();
+                        // Optional: Remove the H1 from the body so it doesn't duplicate in WP Title + Body
+                        extractedContent = markdown.replace(/^# .*$/m, '').trim();
                     }
 
                     setTitle(extractedTitle);
@@ -96,7 +128,7 @@ const WordpressPublisher: React.FC = () => {
                         <Globe className="w-8 h-8" />
                     </div>
                     <h1 className="text-3xl font-bold text-white mb-2">Publicador WordPress</h1>
-                    <p className="text-slate-400">Importe seu conteúdo ou escreva do zero para preparar sua publicação.</p>
+                    <p className="text-slate-400">Importe conteúdo do Docs mantendo a hierarquia (H1, H2, H3) ou escreva aqui.</p>
                 </div>
 
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
@@ -131,12 +163,12 @@ const WordpressPublisher: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-500 mb-1">Conteúdo (Markdown ou Texto)</label>
+                                    <label className="block text-xs font-medium text-slate-500 mb-1">Conteúdo</label>
                                     <textarea 
                                         value={content}
                                         onChange={(e) => setContent(e.target.value)}
-                                        className="w-full h-40 bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 outline-none focus:border-blue-500 resize-none"
-                                        placeholder="Cole seu artigo aqui..."
+                                        className="w-full h-40 bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 outline-none focus:border-blue-500 resize-none font-mono text-sm"
+                                        placeholder="Escreva ou cole seu texto (Markdown suportado)..."
                                     />
                                 </div>
                                 {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -162,7 +194,9 @@ const WordpressPublisher: React.FC = () => {
                                             placeholder="https://docs.google.com/document/d/..."
                                         />
                                     </div>
-                                    <p className="text-xs text-slate-500">O sistema irá importar o texto do documento automaticamente.</p>
+                                    <p className="text-xs text-slate-500">
+                                        O sistema irá ler o HTML do documento e converter para o formato do editor, preservando H1, H2, H3, negritos e listas.
+                                    </p>
                                 </div>
 
                                 {error && <p className="text-red-400 text-sm bg-red-900/20 p-3 rounded-lg border border-red-900/50">{error}</p>}
@@ -187,14 +221,14 @@ const WordpressPublisher: React.FC = () => {
   // EDITOR VIEW
   return (
     <div className="flex flex-col h-full">
-        {/* Toolbar */}
+        {/* Toolbar Top */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
             <div className="flex items-center gap-4">
                 <button onClick={() => setStep('input')} className="text-slate-500 hover:text-white text-sm font-medium">Voltar</button>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <h2 className="text-white font-bold flex items-center gap-2">
                     <Globe className="w-4 h-4 text-blue-400" /> 
-                    Editor de Postagem
+                    Editor WP
                 </h2>
             </div>
             <div className="flex gap-3">
@@ -202,39 +236,72 @@ const WordpressPublisher: React.FC = () => {
                     Salvar Rascunho
                 </button>
                 <button className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/20">
-                    <CheckCircle className="w-4 h-4" /> Publicar no WP
+                    <CheckCircle className="w-4 h-4" /> Publicar
                 </button>
             </div>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
             {/* Main Content Editor */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-slate-950">
-                <div className="max-w-4xl mx-auto space-y-6">
-                    {/* Title Input */}
-                    <div>
-                        <input 
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full bg-transparent text-4xl font-extrabold text-white placeholder:text-slate-700 outline-none border-b border-transparent focus:border-slate-800 pb-2 transition-colors"
-                            placeholder="Título do Post"
-                        />
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-950 flex flex-col items-center pt-8 pb-20">
+                
+                {/* Title Input */}
+                <div className="w-full max-w-3xl px-8 mb-6">
+                    <input 
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full bg-transparent text-4xl font-extrabold text-white placeholder:text-slate-700 outline-none border-none py-2"
+                        placeholder="Adicione um título"
+                    />
+                </div>
+
+                {/* Editor Surface */}
+                <div className="w-full max-w-3xl flex-1 px-8 flex flex-col">
+                    
+                    {/* Formatting Toolbar */}
+                    <div className="sticky top-0 z-10 bg-slate-900 border border-slate-700 rounded-t-lg p-2 flex items-center gap-1 shadow-md mb-0">
+                        <button onClick={() => insertFormat('## ')} title="Título 2" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <Heading2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => insertFormat('### ')} title="Título 3" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <Heading3 className="w-4 h-4" />
+                        </button>
+                        <div className="w-px h-5 bg-slate-700 mx-1"></div>
+                        <button onClick={() => insertFormat('**', '**')} title="Negrito" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <Bold className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => insertFormat('*', '*')} title="Itálico" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <Italic className="w-4 h-4" />
+                        </button>
+                         <button onClick={() => insertFormat('> ')} title="Citação" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <Quote className="w-4 h-4" />
+                        </button>
+                        <div className="w-px h-5 bg-slate-700 mx-1"></div>
+                        <button onClick={() => insertFormat('- ')} title="Lista" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <List className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => insertFormat('[', '](url)')} title="Link" className="p-2 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition-colors">
+                            <LinkIcon className="w-4 h-4" />
+                        </button>
                     </div>
 
-                    {/* Content Area */}
-                    <div className="min-h-[500px] relative group">
-                        <textarea 
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="w-full h-full min-h-[600px] bg-transparent text-lg text-slate-300 placeholder:text-slate-700 outline-none resize-none leading-relaxed font-sans"
-                            placeholder="Comece a escrever ou edite seu conteúdo importado..."
-                        />
-                    </div>
+                    {/* Textarea disguised as Editor */}
+                    <textarea 
+                        ref={textareaRef}
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className="w-full min-h-[600px] flex-1 bg-slate-900/50 border-x border-b border-slate-700 rounded-b-lg p-6 text-lg text-slate-300 placeholder:text-slate-600 outline-none resize-y leading-relaxed font-sans focus:bg-slate-900 focus:ring-1 focus:ring-slate-700 transition-colors"
+                        placeholder="Comece a escrever seu post..."
+                    />
+                    
+                    <p className="text-xs text-slate-500 mt-2 text-right">
+                        Use Markdown ou a barra de ferramentas para formatar.
+                    </p>
                 </div>
             </div>
 
-            {/* Right Sidebar - WP Config (Placeholder for now) */}
-            <div className="w-80 bg-slate-900 border-l border-slate-800 p-6 overflow-y-auto hidden lg:block">
+            {/* Right Sidebar - WP Config */}
+            <div className="w-80 bg-slate-900 border-l border-slate-800 p-6 overflow-y-auto hidden xl:block">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-6">Configurações de Publicação</h3>
                 
                 <div className="space-y-6">

@@ -54,10 +54,55 @@ export const convertMarkdownToHtml = (markdown: string, title: string) => {
     return await response.json(); // Returns { id, webViewLink }
   };
 
+  // Basic HTML to Markdown converter to preserve Hierarchy from Google Docs
+  const htmlToMarkdown = (html: string): string => {
+      let md = html;
+
+      // Clean up Google Docs span mess (simplified)
+      md = md.replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
+      md = md.replace(/<body[^>]*>/g, '').replace(/<\/body>/g, '');
+      md = md.replace(/<html[^>]*>/g, '').replace(/<\/html>/g, '');
+      md = md.replace(/<head>.*<\/head>/s, ''); // Remove head
+
+      // Headers
+      md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n');
+      md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n');
+      md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n');
+      md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n');
+
+      // Formatting
+      md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+      md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+      md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
+      md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+
+      // Links
+      md = md.replace(/<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+
+      // Lists (Basic support)
+      md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+      md = md.replace(/<ul[^>]*>/gi, '\n');
+      md = md.replace(/<\/ul>/gi, '\n');
+      md = md.replace(/<ol[^>]*>/gi, '\n');
+      md = md.replace(/<\/ol>/gi, '\n');
+
+      // Paragraphs and breaks
+      md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
+      md = md.replace(/<br\s*\/?>/gi, '\n');
+      md = md.replace(/&nbsp;/g, ' ');
+
+      // Decoding entities (Basic)
+      md = md.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+      // Collapse multiple newlines
+      md = md.replace(/\n\s*\n\s*\n/g, '\n\n');
+
+      return md.trim();
+  };
+
   export const getGoogleDocContent = async (accessToken: string, fileId: string): Promise<string> => {
-    // Export the Google Doc as plain text to preserve markdown-like structure or just content
-    // Alternatively 'text/html' could be used, but text/plain is safer for raw editing initially.
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`, {
+    // We export as HTML now to preserve headers (H1, H2) structure
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/html`, {
         headers: {
             Authorization: `Bearer ${accessToken}`
         }
@@ -68,5 +113,6 @@ export const convertMarkdownToHtml = (markdown: string, title: string) => {
         throw new Error(errorData.error?.message || 'Falha ao ler o Google Doc');
     }
 
-    return await response.text();
+    const htmlText = await response.text();
+    return htmlToMarkdown(htmlText);
   };
