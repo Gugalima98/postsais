@@ -4,7 +4,7 @@ import {
     ImageIcon, Edit, UploadCloud, Search, Plus, Trash2, ExternalLink, X, Save, Server, User, Lock, FileText
 } from 'lucide-react';
 import { BulkPostDraft, WordpressSite, WordpressCategory } from '../types';
-import { extractSheetId } from '../services/sheets';
+import { extractSheetId, updateSheetCell } from '../services/sheets';
 import { getGoogleDocContent } from '../services/drive';
 import { fetchWpCategories, createWpPost, uploadWpMedia } from '../services/wordpress';
 import ContentEditorModal from './ContentEditorModal';
@@ -20,6 +20,9 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
     const [drafts, setDrafts] = useState<BulkPostDraft[]>([]);
     const [sites, setSites] = useState<WordpressSite[]>([]);
     
+    // Store Sheet Config locally to allow updates after props are cleared
+    const [sheetConfig, setSheetConfig] = useState<{sheetId: string, token: string} | null>(null);
+
     // Modal & Editor States
     const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
     const [isAddSiteModalOpen, setIsAddSiteModalOpen] = useState(false);
@@ -38,17 +41,22 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
     useEffect(() => {
         if (!importedData) return;
 
+        // Save config for later updates (writing back link to sheet)
+        setSheetConfig({ sheetId: importedData.sheetId, token: importedData.token });
+
         const processRows = async () => {
             const newDrafts: BulkPostDraft[] = [];
             
             // NEW MAPPING: A=Keyword, B=SiteURL, C=DocLink
             for (let i = 0; i < importedData.rows.length; i++) {
                 const row = importedData.rows[i];
-                if (!row[0]) continue; // Skip rows without keyword
-
-                const keyword = row[0].trim();
+                
+                // Allow row if it has Keyword OR DocLink. Previously required row[0].
+                const keyword = row[0]?.trim() || '';
                 const siteUrl = row[1]?.trim() || '';
                 const docLink = row[2]?.trim() || '';
+
+                if (!keyword && !docLink) continue; // Skip completely empty rows
 
                 // Try to match site
                 const matchedSite = sites.find(s => {
@@ -62,13 +70,13 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                 const draft: BulkPostDraft = {
                     id: Date.now().toString() + Math.random(),
                     sheetRowIndex: i,
-                    keyword,
+                    keyword: keyword || '(Sem Palavra-chave)',
                     originalDocUrl: docLink,
                     siteUrlFromSheet: siteUrl,
                     title: 'Carregando...',
                     content: '',
                     matchedSiteId: matchedSite ? matchedSite.id : '',
-                    slug: keyword.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-'),
+                    slug: keyword ? keyword.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-') : '',
                     metaDesc: '',
                     image: null,
                     imagePreview: '',
@@ -78,8 +86,8 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
                 // If no doc link, set title to keyword immediately
                 if (!docLink) {
-                    draft.title = keyword;
-                    draft.content = `Artigo sobre: ${keyword} (Importado sem link do Docs)`;
+                    draft.title = keyword || 'Novo Artigo';
+                    draft.content = keyword ? `Artigo sobre: ${keyword} (Importado sem link do Docs)` : '';
                 }
 
                 newDrafts.push(draft);
@@ -99,7 +107,7 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                     const markdown = await getGoogleDocContent(importedData.token, docId);
                     
                     // Parse Title
-                    let extractedTitle = draft.keyword || "Sem Título";
+                    let extractedTitle = draft.keyword !== '(Sem Palavra-chave)' ? draft.keyword : "Sem Título";
                     let extractedContent = markdown;
                     const titleMatch = markdown.match(/^# (.*$)/m);
                     if (titleMatch) {
@@ -108,7 +116,10 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                     }
 
                     // Parse Slug if not set
-                    const slug = extractedTitle.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
+                    let slug = draft.slug;
+                    if (!slug || slug === 'sem-palavra-chave') {
+                         slug = extractedTitle.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
+                    }
 
                     setDrafts(current => current.map(d => 
                         d.id === draft.id ? { 
@@ -217,6 +228,20 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
             updateDraft(id, { status: 'success', publishedLink: result.link });
 
+            // UPDATE SHEET (COLUMN D)
+            if (sheetConfig) {
+                try {
+                    // Update Column D (Index 3 logic in sheets.ts handles letter mapping if logic changed, 
+                    // but we passed explicit letter 'D')
+                    await updateSheetCell(sheetConfig.token, sheetConfig.sheetId, draft.sheetRowIndex, result.link, 'D');
+                    console.log("Planilha atualizada na coluna D");
+                } catch (sheetErr) {
+                    console.error("Erro ao atualizar planilha:", sheetErr);
+                    // We don't fail the whole UI process if sheet update fails, just log it. 
+                    // Or we could show a warning toast.
+                }
+            }
+
         } catch (e: any) {
             updateDraft(id, { status: 'error', errorMsg: e.message });
         }
@@ -285,7 +310,7 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                                         />
                                     )}
                                     <div className="flex items-center gap-4 text-xs mt-2">
-                                        <span className="text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                                        <span className={`px-2 py-0.5 rounded ${draft.keyword === '(Sem Palavra-chave)' ? 'bg-slate-800 text-slate-500 italic' : 'bg-slate-800 text-slate-500'}`}>
                                             KW: <span className="text-white font-bold">{draft.keyword}</span>
                                         </span>
                                         

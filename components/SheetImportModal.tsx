@@ -111,9 +111,10 @@ const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, on
                 {isBulkPublish ? (
                     // BULK PUBLISH INSTRUCTIONS
                     <div className="flex flex-col gap-2 pb-2">
-                        <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col A:</span> <span className="text-slate-400">Palavra-chave (Keyword)</span></div>
+                        <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col A:</span> <span className="text-slate-400">Palavra-chave (Opcional)</span></div>
                         <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col B:</span> <span className="text-slate-400">Site WordPress (URL)</span></div>
                         <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col C:</span> <span className="text-slate-400">Link do Google Docs</span></div>
+                        <div className="flex items-center gap-2 border-t border-slate-800/50 pt-2 mt-1"><span className="font-mono text-blue-400">Col D:</span> <span className="text-blue-200 text-xs">Receberá o Link Publicado</span></div>
                     </div>
                 ) : (
                     // GENERATION INSTRUCTIONS
