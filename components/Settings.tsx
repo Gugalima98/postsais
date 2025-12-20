@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Key, AlertCircle, LogIn, CheckCircle2, XCircle, FlaskConical, Plus, Trash2, ShieldCheck, Globe, Edit, Server, User, Lock, X } from 'lucide-react';
+import { Save, Key, AlertCircle, LogIn, CheckCircle2, XCircle, FlaskConical, Plus, Trash2, ShieldCheck, Globe, Edit, Server, User, Lock, X, RefreshCw, Loader2 } from 'lucide-react';
 import { WordpressSite } from '../types';
+import { fetchWpCategories } from '../services/wordpress';
 
 interface SettingsProps {
   onSave: () => void;
@@ -20,6 +21,10 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
   const [wpSites, setWpSites] = useState<WordpressSite[]>([]);
   const [isEditSiteOpen, setIsEditSiteOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<WordpressSite | null>(null); // null = new site
+  
+  // WP Connection Test State
+  const [wpTestStatus, setWpTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [wpTestMsg, setWpTestMsg] = useState('');
 
   useEffect(() => {
     // Load Drive Client ID
@@ -77,6 +82,8 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
   // --- WP SITES MANAGEMENT ---
   const handleEditSite = (site: WordpressSite) => {
       setEditingSite({ ...site }); // Clone to avoid direct mutation
+      setWpTestStatus('idle');
+      setWpTestMsg('');
       setIsEditSiteOpen(true);
   };
 
@@ -85,6 +92,27 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
           const updated = wpSites.filter(s => s.id !== id);
           setWpSites(updated);
           localStorage.setItem('guestpost_wp_sites', JSON.stringify(updated));
+      }
+  };
+
+  const testWpConnection = async () => {
+      if (!editingSite || !editingSite.url || !editingSite.username || !editingSite.appPassword) {
+          setWpTestStatus('error');
+          setWpTestMsg('Preencha URL, Usuário e Senha antes de testar.');
+          return;
+      }
+
+      setWpTestStatus('loading');
+      setWpTestMsg('');
+
+      try {
+          // Try to fetch categories using the service
+          const cats = await fetchWpCategories(editingSite);
+          setWpTestStatus('success');
+          setWpTestMsg(`Conexão OK! ${cats.length} categorias encontradas.`);
+      } catch (e: any) {
+          setWpTestStatus('error');
+          setWpTestMsg('Falha: ' + (e.message || 'Erro desconhecido. Verifique URL/Credenciais/CORS.'));
       }
   };
 
@@ -263,6 +291,8 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                         <button 
                             onClick={() => {
                                 setEditingSite({ id: Date.now().toString(), name: '', url: '', username: '', appPassword: '' });
+                                setWpTestStatus('idle');
+                                setWpTestMsg('');
                                 setIsEditSiteOpen(true);
                             }}
                             className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors"
@@ -435,6 +465,29 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                     
                     <div className="text-[10px] text-slate-500 bg-blue-900/10 p-2 rounded border border-blue-900/30">
                         <strong>Dica:</strong> Vá em Usuários &gt; Seu Perfil &gt; Senhas de Aplicação no painel do WP para gerar a senha.
+                    </div>
+
+                    {/* CONNECTION TESTER */}
+                    <div className="border-t border-slate-800 pt-3 mt-1">
+                        <button 
+                            onClick={testWpConnection}
+                            disabled={wpTestStatus === 'loading'}
+                            className="text-xs flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                        >
+                           {wpTestStatus === 'loading' ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
+                           Testar Conexão e Buscar Categorias
+                        </button>
+                        
+                        {wpTestStatus === 'success' && (
+                            <div className="mt-2 text-xs text-green-400 bg-green-900/20 p-2 rounded border border-green-900/40 flex items-center gap-2">
+                                <CheckCircle2 className="w-3 h-3"/> {wpTestMsg}
+                            </div>
+                        )}
+                        {wpTestStatus === 'error' && (
+                            <div className="mt-2 text-xs text-red-400 bg-red-900/20 p-2 rounded border border-red-900/40 flex items-center gap-2">
+                                <XCircle className="w-3 h-3"/> {wpTestMsg}
+                            </div>
+                        )}
                     </div>
 
                     <button 
