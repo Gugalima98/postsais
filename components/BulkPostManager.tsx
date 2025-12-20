@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     FileSpreadsheet, Loader2, Globe, AlertTriangle, CheckCircle, 
-    ImageIcon, Edit, UploadCloud, Search, Plus, Trash2, ExternalLink, X, Save, Server, User, Lock, FileText
+    ImageIcon, Edit, UploadCloud, Search, Plus, Trash2, ExternalLink, X, Save, Server, User, Lock, FileText, RefreshCw, PenLine
 } from 'lucide-react';
 import { BulkPostDraft, WordpressSite, WordpressCategory } from '../types';
 import { extractSheetId, updateSheetCell } from '../services/sheets';
@@ -25,6 +25,9 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
     // Modal & Editor States
     const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+    const [editingLinkDraftId, setEditingLinkDraftId] = useState<string | null>(null); // State for editing link
+    const [tempLinkValue, setTempLinkValue] = useState(''); // Temp value for link input
+    
     const [isAddSiteModalOpen, setIsAddSiteModalOpen] = useState(false);
     const [newSite, setNewSite] = useState({ name: '', url: '', username: '', appPassword: '' });
 
@@ -36,6 +39,49 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
         const stored = localStorage.getItem('guestpost_wp_sites');
         if (stored) setSites(JSON.parse(stored));
     }, []);
+
+    // Helper to fetch content for a single draft
+    const fetchContentForDraft = async (draft: BulkPostDraft, token: string) => {
+        if (!draft.originalDocUrl) return;
+
+        try {
+            updateDraft(draft.id, { status: 'loading_doc', errorMsg: '' });
+            
+            const docId = extractSheetId(draft.originalDocUrl);
+            if (!docId) throw new Error("Link do Doc inválido");
+            
+            const markdown = await getGoogleDocContent(token, docId);
+            
+            // Parse Title
+            let extractedTitle = draft.keyword !== '(Sem Palavra-chave)' ? draft.keyword : "Sem Título";
+            let extractedContent = markdown;
+            const titleMatch = markdown.match(/^# (.*$)/m);
+            if (titleMatch) {
+                extractedTitle = titleMatch[1].trim();
+                extractedContent = markdown.replace(/^# .*$/m, '').trim();
+            }
+
+            // Parse Slug if not set
+            let slug = draft.slug;
+            if (!slug || slug === 'sem-palavra-chave') {
+                    slug = extractedTitle.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
+            }
+
+            updateDraft(draft.id, { 
+                title: extractedTitle, 
+                content: extractedContent, 
+                slug: slug, 
+                status: 'idle' 
+            });
+
+        } catch (e: any) {
+            updateDraft(draft.id, { 
+                title: 'Erro ao carregar', 
+                status: 'error', 
+                errorMsg: e.message 
+            });
+        }
+    };
 
     // Process Imported Data
     useEffect(() => {
@@ -97,45 +143,8 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
             clearImportedData();
 
             // Fetch Doc Contents in background
-            newDrafts.forEach(async (draft) => {
-                if (!draft.originalDocUrl) return;
-
-                try {
-                    const docId = extractSheetId(draft.originalDocUrl);
-                    if (!docId) throw new Error("Link do Doc inválido");
-                    
-                    const markdown = await getGoogleDocContent(importedData.token, docId);
-                    
-                    // Parse Title
-                    let extractedTitle = draft.keyword !== '(Sem Palavra-chave)' ? draft.keyword : "Sem Título";
-                    let extractedContent = markdown;
-                    const titleMatch = markdown.match(/^# (.*$)/m);
-                    if (titleMatch) {
-                        extractedTitle = titleMatch[1].trim();
-                        extractedContent = markdown.replace(/^# .*$/m, '').trim();
-                    }
-
-                    // Parse Slug if not set
-                    let slug = draft.slug;
-                    if (!slug || slug === 'sem-palavra-chave') {
-                         slug = extractedTitle.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
-                    }
-
-                    setDrafts(current => current.map(d => 
-                        d.id === draft.id ? { 
-                            ...d, 
-                            title: extractedTitle, 
-                            content: extractedContent, 
-                            slug: slug,
-                            status: 'idle' 
-                        } : d
-                    ));
-
-                } catch (e: any) {
-                    setDrafts(current => current.map(d => 
-                        d.id === draft.id ? { ...d, title: 'Erro ao carregar', status: 'error', errorMsg: e.message } : d
-                    ));
-                }
+            newDrafts.forEach(draft => {
+                fetchContentForDraft(draft, importedData.token);
             });
         };
 
@@ -168,7 +177,7 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
         updateDraft(id, { image: file, imagePreview: preview });
     };
 
-    const handleAddSite = () => {
+    const handleAddSite = async () => {
          if (!newSite.name || !newSite.url || !newSite.username || !newSite.appPassword) return;
 
          const site: WordpressSite = {
@@ -185,15 +194,47 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
          setNewSite({ name: '', url: '', username: '', appPassword: '' });
          setIsAddSiteModalOpen(false);
 
-         // Auto-match existing drafts
-         setDrafts(prev => prev.map(d => {
-             const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-             const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
-             if (sUrl === rowUrlNorm && !d.matchedSiteId) {
-                 return { ...d, matchedSiteId: site.id };
-             }
-             return d;
-         }));
+         // Fetch categories immediately for the new site
+         try {
+             const cats = await fetchWpCategories(site);
+             setCategoryCache(prev => ({ ...prev, [site.id]: cats }));
+             
+             // Auto-match existing drafts AND set category
+             setDrafts(prev => prev.map(d => {
+                 const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                 const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                 
+                 if (sUrl === rowUrlNorm && !d.matchedSiteId) {
+                     return { 
+                         ...d, 
+                         matchedSiteId: site.id,
+                         categoryId: cats.length > 0 ? cats[0].id : '' // Set first category
+                     };
+                 }
+                 return d;
+             }));
+         } catch (error) {
+             console.error("Erro ao buscar categorias do novo site:", error);
+             // Even if categories fail, we still match the site
+             setDrafts(prev => prev.map(d => {
+                const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                if (sUrl === rowUrlNorm && !d.matchedSiteId) {
+                    return { ...d, matchedSiteId: site.id };
+                }
+                return d;
+            }));
+         }
+    };
+
+    const handleSaveLink = (draft: BulkPostDraft) => {
+        updateDraft(draft.id, { originalDocUrl: tempLinkValue });
+        setEditingLinkDraftId(null);
+        
+        // Try to reload content if we have a token
+        if (sheetConfig?.token) {
+            fetchContentForDraft({ ...draft, originalDocUrl: tempLinkValue }, sheetConfig.token);
+        }
     };
 
     const handlePublish = async (id: string) => {
@@ -231,14 +272,10 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
             // UPDATE SHEET (COLUMN D)
             if (sheetConfig) {
                 try {
-                    // Update Column D (Index 3 logic in sheets.ts handles letter mapping if logic changed, 
-                    // but we passed explicit letter 'D')
                     await updateSheetCell(sheetConfig.token, sheetConfig.sheetId, draft.sheetRowIndex, result.link, 'D');
                     console.log("Planilha atualizada na coluna D");
                 } catch (sheetErr) {
                     console.error("Erro ao atualizar planilha:", sheetErr);
-                    // We don't fail the whole UI process if sheet update fails, just log it. 
-                    // Or we could show a warning toast.
                 }
             }
 
@@ -309,17 +346,45 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                                             placeholder="Título do Artigo"
                                         />
                                     )}
-                                    <div className="flex items-center gap-4 text-xs mt-2">
+                                    <div className="flex flex-wrap items-center gap-4 text-xs mt-2">
                                         <span className={`px-2 py-0.5 rounded ${draft.keyword === '(Sem Palavra-chave)' ? 'bg-slate-800 text-slate-500 italic' : 'bg-slate-800 text-slate-500'}`}>
                                             KW: <span className="text-white font-bold">{draft.keyword}</span>
                                         </span>
                                         
-                                        {draft.originalDocUrl ? (
-                                            <a href={draft.originalDocUrl} target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-indigo-400 transition-colors">
-                                                <ExternalLink className="w-3 h-3" /> Ver Doc
-                                            </a>
+                                        {/* DOC LINK SECTION - EDITABLE */}
+                                        {editingLinkDraftId === draft.id ? (
+                                            <div className="flex items-center gap-1 bg-slate-800 rounded px-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                                                <input 
+                                                    value={tempLinkValue}
+                                                    onChange={(e) => setTempLinkValue(e.target.value)}
+                                                    placeholder="https://docs.google.com/..."
+                                                    className="bg-transparent text-white w-48 outline-none px-1"
+                                                    autoFocus
+                                                />
+                                                <button onClick={() => handleSaveLink(draft)} className="p-1 hover:text-green-400"><CheckCircle className="w-3 h-3"/></button>
+                                                <button onClick={() => setEditingLinkDraftId(null)} className="p-1 hover:text-red-400"><X className="w-3 h-3"/></button>
+                                            </div>
                                         ) : (
-                                            <span className="text-slate-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Sem Doc</span>
+                                            <div className="flex items-center gap-2 group">
+                                                {draft.originalDocUrl ? (
+                                                    <a href={draft.originalDocUrl} target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-indigo-400 transition-colors">
+                                                        <ExternalLink className="w-3 h-3" /> Ver Doc
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Sem Doc</span>
+                                                )}
+                                                
+                                                <button 
+                                                    onClick={() => {
+                                                        setTempLinkValue(draft.originalDocUrl);
+                                                        setEditingLinkDraftId(draft.id);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-white transition-all"
+                                                    title="Editar Link"
+                                                >
+                                                    <PenLine className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                         )}
 
                                         {draft.status === 'success' && (
