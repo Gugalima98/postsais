@@ -33,6 +33,8 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
     // Cache categories to avoid fetching for every row
     const [categoryCache, setCategoryCache] = useState<Record<string, WordpressCategory[]>>({});
+    // Track loading state for categories per site
+    const [loadingCategories, setLoadingCategories] = useState<Record<string, boolean>>({});
 
     // Load Sites
     useEffect(() => {
@@ -160,17 +162,37 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
     useEffect(() => {
         drafts.forEach(draft => {
             if (draft.matchedSiteId && !categoryCache[draft.matchedSiteId]) {
-                const site = sites.find(s => s.id === draft.matchedSiteId);
-                if (site) {
-                    fetchWpCategories(site).then(cats => {
-                        setCategoryCache(prev => ({ ...prev, [site.id]: cats }));
-                        // Auto-select first category for drafts with this site
-                        setDrafts(curr => curr.map(d => d.matchedSiteId === site.id && !d.categoryId ? {...d, categoryId: cats[0]?.id || ''} : d));
-                    }).catch(console.error);
-                }
+                handleRefreshCategories(draft.matchedSiteId);
             }
         });
-    }, [drafts, sites, categoryCache]);
+    }, [drafts, sites]); // removed categoryCache from deps to prevent infinite loops
+
+    const handleRefreshCategories = async (siteId: string) => {
+        const site = sites.find(s => s.id === siteId);
+        if (!site) return;
+        
+        // Prevent concurrent fetches for same site
+        if (loadingCategories[siteId]) return;
+
+        setLoadingCategories(prev => ({ ...prev, [siteId]: true }));
+        
+        try {
+            const cats = await fetchWpCategories(site);
+            setCategoryCache(prev => ({ ...prev, [site.id]: cats }));
+            
+            // Update drafts that belong to this site to auto-select first category if empty
+            setDrafts(curr => curr.map(d => {
+                if (d.matchedSiteId === site.id && !d.categoryId) {
+                    return { ...d, categoryId: cats[0]?.id || '' };
+                }
+                return d;
+            }));
+        } catch (error) {
+            console.error(`Erro ao carregar categorias para ${site.name}:`, error);
+        } finally {
+            setLoadingCategories(prev => ({ ...prev, [siteId]: false }));
+        }
+    };
 
     // Handlers
     const updateDraft = (id: string, updates: Partial<BulkPostDraft>) => {
@@ -200,36 +222,17 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
          setIsAddSiteModalOpen(false);
 
          // Fetch categories immediately for the new site
-         try {
-             const cats = await fetchWpCategories(site);
-             setCategoryCache(prev => ({ ...prev, [site.id]: cats }));
-             
-             // Auto-match existing drafts AND set category
-             setDrafts(prev => prev.map(d => {
-                 const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                 const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                 
-                 if (sUrl === rowUrlNorm && !d.matchedSiteId) {
-                     return { 
-                         ...d, 
-                         matchedSiteId: site.id,
-                         categoryId: cats.length > 0 ? cats[0].id : '' // Set first category
-                     };
-                 }
-                 return d;
-             }));
-         } catch (error) {
-             console.error("Erro ao buscar categorias do novo site:", error);
-             // Even if categories fail, we still match the site
-             setDrafts(prev => prev.map(d => {
-                const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                if (sUrl === rowUrlNorm && !d.matchedSiteId) {
-                    return { ...d, matchedSiteId: site.id };
-                }
-                return d;
-            }));
-         }
+         handleRefreshCategories(site.id);
+         
+         // Match existing drafts
+         setDrafts(prev => prev.map(d => {
+             const sUrl = site.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+             const rowUrlNorm = d.siteUrlFromSheet.replace(/^https?:\/\//, '').replace(/\/$/, '');
+             if (sUrl === rowUrlNorm && !d.matchedSiteId) {
+                 return { ...d, matchedSiteId: site.id };
+             }
+             return d;
+         }));
     };
 
     const handleSaveLink = (draft: BulkPostDraft) => {
@@ -459,7 +462,17 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
                                     {draft.matchedSiteId && (
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase flex justify-between items-center">
+                                                Categoria
+                                                <button 
+                                                    onClick={() => handleRefreshCategories(draft.matchedSiteId)}
+                                                    className="text-indigo-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors flex items-center gap-1"
+                                                    title="Recarregar Categorias"
+                                                    disabled={loadingCategories[draft.matchedSiteId]}
+                                                >
+                                                    {loadingCategories[draft.matchedSiteId] ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3" />}
+                                                </button>
+                                            </label>
                                             <select 
                                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
                                                 value={draft.categoryId}
@@ -469,6 +482,9 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                                                 {categoryCache[draft.matchedSiteId]?.map(c => (
                                                     <option key={c.id} value={c.id}>{c.name}</option>
                                                 ))}
+                                                {(!categoryCache[draft.matchedSiteId] || categoryCache[draft.matchedSiteId].length === 0) && (
+                                                    <option value="" disabled>Nenhuma categoria (Recarregue)</option>
+                                                )}
                                             </select>
                                         </div>
                                     )}
