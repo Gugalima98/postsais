@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { 
     FileText, Link as LinkIcon, ArrowRight, Globe, Layout, Type, 
     Image as ImageIcon, CheckCircle, Loader2, Bold, Italic, 
-    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink, Trash2, Search
+    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink, Trash2, Search, Copy
 } from 'lucide-react';
 import { extractSheetId } from '../services/sheets';
 import { getGoogleDocContent } from '../services/drive';
@@ -49,6 +49,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
   const [publishingStatus, setPublishingStatus] = useState<'idle' | 'uploading_img' | 'drafting' | 'publishing'>('idle');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState<{msg: string, link: string} | null>(null);
+  const [publishedData, setPublishedData] = useState<{link: string, title: string} | null>(null); // Persistent Success State
 
   // Editor Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -173,6 +174,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
   const handlePublish = async (status: 'publish' | 'draft') => {
       setError('');
       setSuccessMsg(null);
+      setPublishedData(null);
       
       const site = getSelectedSite();
       if (!site) {
@@ -208,6 +210,11 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
               msg: status === 'publish' ? 'Post publicado com sucesso!' : 'Rascunho salvo com sucesso!',
               link: result.link
           });
+
+          if (status === 'publish') {
+            setPublishedData({ link: result.link, title: title });
+          }
+
       } catch (err: any) {
           setError(err.message);
       } finally {
@@ -538,11 +545,44 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
             </div>
         </div>
 
+        {/* --- PERSISTENT SUCCESS PANEL --- */}
+        {publishedData && (
+            <div className="w-full bg-green-900/20 border-b border-green-900/50 px-6 py-4 animate-in slide-in-from-top-2">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                         <div className="bg-green-600 p-2 rounded-full">
+                             <CheckCircle className="w-5 h-5 text-white" />
+                         </div>
+                         <div>
+                             <h4 className="text-green-400 font-bold">Artigo Publicado com Sucesso!</h4>
+                             <a href={publishedData.link} target="_blank" className="text-white text-sm hover:underline flex items-center gap-1">
+                                {publishedData.link} <ExternalLink className="w-3 h-3" />
+                             </a>
+                         </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => {
+                                navigator.clipboard.writeText(publishedData.link);
+                                alert("Link copiado!");
+                            }}
+                            className="px-3 py-1.5 bg-green-800/50 hover:bg-green-800 text-green-100 text-xs font-bold rounded flex items-center gap-1 transition-colors"
+                        >
+                            <Copy className="w-3 h-3"/> Copiar Link
+                        </button>
+                        <button onClick={() => setPublishedData(null)} className="p-2 text-green-400 hover:text-white">
+                            <X className="w-4 h-4"/>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div className="flex-1 flex overflow-hidden">
             {/* Main Content Editor */}
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-950 flex flex-col items-center pt-8 pb-20 relative">
                 
-                {/* STATUS NOTIFICATIONS */}
+                {/* ERROR NOTIFICATIONS (Floating) */}
                 {error && (
                     <div className="absolute top-4 z-20 bg-red-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 animate-bounce-in">
                         <AlertTriangle className="w-5 h-5"/>
@@ -550,19 +590,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
                         <button onClick={() => setError('')}><X className="w-4 h-4 opacity-70"/></button>
                     </div>
                 )}
-                {successMsg && (
-                    <div className="absolute top-4 z-20 bg-green-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 animate-bounce-in">
-                        <CheckCircle className="w-5 h-5"/>
-                        <span className="font-medium text-sm">{successMsg.msg}</span>
-                        {successMsg.link && (
-                             <a href={successMsg.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded text-xs hover:bg-white/30 transition-colors">
-                                Ver Post <ExternalLink className="w-3 h-3"/>
-                             </a>
-                        )}
-                        <button onClick={() => setSuccessMsg(null)}><X className="w-4 h-4 opacity-70"/></button>
-                    </div>
-                )}
-
+                
                 {/* Title Input */}
                 <div className="w-full max-w-3xl px-8 mb-6">
                     <input 
