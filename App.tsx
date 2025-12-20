@@ -473,6 +473,7 @@ const App: React.FC = () => {
             onClose={() => setIsSheetModalOpen(false)}
             onImport={handleSheetImport}
             isDemoMode={isDemoMode}
+            currentMode={mode}
         />
 
         {renderContent()}

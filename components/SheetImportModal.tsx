@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { X, FileSpreadsheet, Play, Loader2, AlertCircle } from 'lucide-react';
 import { extractSheetId, fetchSheetRows } from '../services/sheets';
+import { AppMode } from '../types';
 
 interface SheetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (sheetId: string, rows: any[][], token: string) => void;
   isDemoMode: boolean;
+  currentMode?: AppMode; // Added to handle different instructions
 }
 
-const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, onImport, isDemoMode }) => {
+const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, onImport, isDemoMode, currentMode }) => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -79,6 +81,8 @@ const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, on
     }
   };
 
+  const isBulkPublish = currentMode === AppMode.BULK_PUBLISH;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl">
@@ -90,7 +94,7 @@ const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, on
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Importar em Massa</h2>
+              <h2 className="text-xl font-bold text-white">{isBulkPublish ? 'Importar Artigos Prontos' : 'Gerar Novos Artigos'}</h2>
               <p className="text-xs text-slate-400">O processamento ocorrerá em segundo plano.</p>
             </div>
           </div>
@@ -102,15 +106,29 @@ const SheetImportModal: React.FC<SheetImportModalProps> = ({ isOpen, onClose, on
         {/* Content */}
         <div className="p-6 space-y-6">
              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 text-sm">
-                <p className="font-semibold text-slate-300 mb-2">Instruções:</p>
-                <div className="flex flex-wrap gap-2 pb-2">
-                    {['A: Palavra-chave', 'B: Nicho Host', 'C: Link Alvo', 'D: Texto Âncora', 'E: Nicho Alvo'].map(col => (
-                        <span key={col} className="px-2 py-1 bg-slate-800 rounded text-slate-300 text-[10px] border border-slate-700">{col}</span>
-                    ))}
-                </div>
-                <p className="text-slate-500 text-xs italic mt-2">
-                    A coluna F receberá o link do documento gerado.
-                </p>
+                <p className="font-semibold text-slate-300 mb-2">Estrutura das Colunas:</p>
+                
+                {isBulkPublish ? (
+                    // BULK PUBLISH INSTRUCTIONS
+                    <div className="flex flex-col gap-2 pb-2">
+                        <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col A:</span> <span className="text-slate-400">Palavra-chave (Keyword)</span></div>
+                        <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col B:</span> <span className="text-slate-400">Site WordPress (URL)</span></div>
+                        <div className="flex items-center gap-2"><span className="font-mono text-emerald-400">Col C:</span> <span className="text-slate-400">Link do Google Docs</span></div>
+                    </div>
+                ) : (
+                    // GENERATION INSTRUCTIONS
+                    <div className="flex flex-wrap gap-2 pb-2">
+                        {['A: Palavra-chave', 'B: Nicho Host', 'C: Link Alvo', 'D: Texto Âncora', 'E: Nicho Alvo'].map(col => (
+                            <span key={col} className="px-2 py-1 bg-slate-800 rounded text-slate-300 text-[10px] border border-slate-700">{col}</span>
+                        ))}
+                    </div>
+                )}
+                
+                {!isBulkPublish && (
+                    <p className="text-slate-500 text-xs italic mt-2">
+                        A coluna F receberá o link do documento gerado.
+                    </p>
+                )}
              </div>
 
             <div>

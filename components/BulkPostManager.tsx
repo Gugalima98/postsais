@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     FileSpreadsheet, Loader2, Globe, AlertTriangle, CheckCircle, 
-    ImageIcon, Edit, UploadCloud, Search, Plus, Trash2, ExternalLink, X, Save, Server, User, Lock
+    ImageIcon, Edit, UploadCloud, Search, Plus, Trash2, ExternalLink, X, Save, Server, User, Lock, FileText
 } from 'lucide-react';
 import { BulkPostDraft, WordpressSite, WordpressCategory } from '../types';
 import { extractSheetId } from '../services/sheets';
@@ -41,17 +41,18 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
         const processRows = async () => {
             const newDrafts: BulkPostDraft[] = [];
             
-            // Assuming Columns: A=SiteURL, B=DocLink, C=Keyword
+            // NEW MAPPING: A=Keyword, B=SiteURL, C=DocLink
             for (let i = 0; i < importedData.rows.length; i++) {
                 const row = importedData.rows[i];
-                if (!row[0] || !row[1]) continue; // Skip invalid rows
+                if (!row[0]) continue; // Skip rows without keyword
 
-                const siteUrl = row[0].trim();
-                const docLink = row[1].trim();
-                const keyword = row[2] || '';
+                const keyword = row[0].trim();
+                const siteUrl = row[1]?.trim() || '';
+                const docLink = row[2]?.trim() || '';
 
                 // Try to match site
                 const matchedSite = sites.find(s => {
+                    if (!siteUrl) return false;
                     // Normalize for comparison
                     const sUrl = s.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
                     const rowUrlNorm = siteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -72,8 +73,15 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                     image: null,
                     imagePreview: '',
                     categoryId: '',
-                    status: 'loading_doc'
+                    status: docLink ? 'loading_doc' : 'idle' // Only load doc if link exists
                 };
+
+                // If no doc link, set title to keyword immediately
+                if (!docLink) {
+                    draft.title = keyword;
+                    draft.content = `Artigo sobre: ${keyword} (Importado sem link do Docs)`;
+                }
+
                 newDrafts.push(draft);
             }
 
@@ -82,6 +90,8 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
 
             // Fetch Doc Contents in background
             newDrafts.forEach(async (draft) => {
+                if (!draft.originalDocUrl) return;
+
                 try {
                     const docId = extractSheetId(draft.originalDocUrl);
                     if (!docId) throw new Error("Link do Doc inválido");
@@ -259,7 +269,7 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                     {drafts.map(draft => (
                         <div key={draft.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl relative animate-in fade-in slide-in-from-bottom-2 duration-500">
                             
-                            {/* Top Bar: Status & Actions */}
+                            {/* REVERTED CARD HEADER STRUCTURE (Title Input on Top) */}
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex-1 mr-4">
                                     {draft.status === 'loading_doc' ? (
@@ -275,9 +285,18 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                                         />
                                     )}
                                     <div className="flex items-center gap-4 text-xs mt-2">
-                                        <a href={draft.originalDocUrl} target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-indigo-400 transition-colors">
-                                            <ExternalLink className="w-3 h-3" /> Ver Doc Original
-                                        </a>
+                                        <span className="text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                                            KW: <span className="text-white font-bold">{draft.keyword}</span>
+                                        </span>
+                                        
+                                        {draft.originalDocUrl ? (
+                                            <a href={draft.originalDocUrl} target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-indigo-400 transition-colors">
+                                                <ExternalLink className="w-3 h-3" /> Ver Doc
+                                            </a>
+                                        ) : (
+                                            <span className="text-slate-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Sem Doc</span>
+                                        )}
+
                                         {draft.status === 'success' && (
                                              <a href={draft.publishedLink} target="_blank" className="flex items-center gap-1 text-green-400 hover:text-green-300 font-bold bg-green-900/20 px-2 py-0.5 rounded">
                                                 <CheckCircle className="w-3 h-3" /> Publicado
@@ -336,7 +355,11 @@ const BulkPostManager: React.FC<BulkPostManagerProps> = ({ onOpenImportModal, im
                                                 <Plus className="w-4 h-4"/>
                                             </button>
                                         </div>
-                                        <p className="text-[10px] text-slate-600 truncate">Alvo da Planilha: {draft.siteUrlFromSheet}</p>
+                                        {draft.siteUrlFromSheet && (
+                                            <p className="text-[10px] text-slate-600 truncate" title={draft.siteUrlFromSheet}>
+                                                Alvo da Planilha: {draft.siteUrlFromSheet}
+                                            </p>
+                                        )}
                                     </div>
 
                                     {draft.matchedSiteId && (
