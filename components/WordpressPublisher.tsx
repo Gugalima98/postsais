@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { 
     FileText, Link as LinkIcon, ArrowRight, Globe, Layout, Type, 
     Image as ImageIcon, CheckCircle, Loader2, Bold, Italic, 
-    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink, Trash2, Search, Copy
+    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink, Trash2, Search, Copy, RefreshCw
 } from 'lucide-react';
 import { extractSheetId } from '../services/sheets';
 import { getGoogleDocContent } from '../services/drive';
@@ -43,6 +43,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [categoryError, setCategoryError] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Helper to force re-fetch
 
   // UI State
   const [isLoading, setIsLoading] = useState(false); // For Import
@@ -125,7 +126,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
     };
 
     fetchCats();
-  }, [selectedSiteId, sites]);
+  }, [selectedSiteId, sites, refreshTrigger]);
 
 
   // --- SITE MANAGEMENT ---
@@ -711,7 +712,14 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
                             <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
                                 <Layout className="w-4 h-4 text-slate-500" /> Categoria
                             </label>
-                            {isLoadingCategories && <Loader2 className="w-3 h-3 text-slate-500 animate-spin" />}
+                             <button 
+                                onClick={() => setRefreshTrigger(prev => prev + 1)}
+                                disabled={isLoadingCategories || !selectedSiteId}
+                                className="p-1 text-slate-500 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                                title="Recarregar Categorias"
+                             >
+                                {isLoadingCategories ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                             </button>
                         </div>
                         
                         <select 
@@ -728,8 +736,8 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
                         </select>
                         
                         {categoryError && (
-                            <div className="text-[10px] text-red-400 flex items-center gap-1 mt-1">
-                                <AlertTriangle className="w-3 h-3"/> {categoryError}
+                            <div className="text-[10px] text-red-400 flex items-center gap-1 mt-1 bg-red-900/10 p-1.5 rounded border border-red-900/30">
+                                <AlertTriangle className="w-3 h-3 flex-shrink-0"/> <span className="truncate">{categoryError}</span>
                             </div>
                         )}
                     </div>

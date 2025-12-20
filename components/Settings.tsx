@@ -76,7 +76,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
 
   // --- WP SITES MANAGEMENT ---
   const handleEditSite = (site: WordpressSite) => {
-      setEditingSite(site);
+      setEditingSite({ ...site }); // Clone to avoid direct mutation
       setIsEditSiteOpen(true);
   };
 
@@ -94,14 +94,17 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
           return;
       }
 
-      // Check if updating or creating
-      const isNew = !wpSites.find(s => s.id === editingSite.id);
+      // Check if updating or creating based on ID existence in current list
+      const existingIndex = wpSites.findIndex(s => s.id === editingSite.id);
       
       let updatedSites;
-      if (isNew) {
-          updatedSites = [...wpSites, editingSite];
+      if (existingIndex >= 0) {
+          // Update existing
+          updatedSites = [...wpSites];
+          updatedSites[existingIndex] = editingSite;
       } else {
-          updatedSites = wpSites.map(s => s.id === editingSite.id ? editingSite : s);
+          // Create new
+          updatedSites = [...wpSites, editingSite];
       }
 
       setWpSites(updatedSites);
@@ -374,7 +377,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
             <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
                     <h3 className="font-bold text-white flex items-center gap-2">
-                        <Server className="w-4 h-4 text-blue-400" /> {editingSite.name ? 'Editar Site' : 'Novo Site'}
+                        <Server className="w-4 h-4 text-blue-400" /> {wpSites.some(s => s.id === editingSite.id) ? 'Editar Site' : 'Novo Site'}
                     </h3>
                     <button onClick={() => setIsEditSiteOpen(false)} className="text-slate-400 hover:text-white">
                         <X className="w-5 h-5" />
