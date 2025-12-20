@@ -42,19 +42,38 @@ const markdownToHtml = (markdown: string): string => {
     return html;
 };
 
-// Helper to clean URL (remove wp-admin, trailing slashes, etc)
+// Helper to clean URL (remove wp-admin, trailing slashes, ensure protocol)
 const cleanWpUrl = (url: string): string => {
     let clean = url.trim();
+    
+    // 1. Ensure Protocol (default to https if missing)
+    if (!/^https?:\/\//i.test(clean)) {
+        clean = 'https://' + clean;
+    }
+
+    // 2. Remove common WP paths if user pasted them
     clean = clean.replace(/\/$/, ''); // Remove trailing slash
-    clean = clean.replace(/\/wp-admin\/?$/, ''); // Remove wp-admin
-    clean = clean.replace(/\/wp-login\.php\/?$/, ''); // Remove wp-login
+    clean = clean.replace(/\/wp-admin.*$/, ''); 
+    clean = clean.replace(/\/wp-login\.php.*$/, ''); 
+    clean = clean.replace(/\/wp-json.*$/, ''); // If user pasted the API root
+    
     return clean;
+};
+
+// Safe Basic Auth Encoding for Unicode (e.g. special chars in password)
+const encodeBasicAuth = (user: string, pass: string) => {
+    // btoa alone fails on unicode strings, we need to escape first
+    try {
+        return btoa(unescape(encodeURIComponent(`${user}:${pass}`)));
+    } catch (e) {
+        return btoa(`${user}:${pass}`);
+    }
 };
 
 // Generic Fetch Wrapper with Fallback Strategy
 const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, options: RequestInit = {}) => {
     const baseUrl = cleanWpUrl(site.url);
-    const authString = btoa(`${site.username}:${site.appPassword}`);
+    const authString = encodeBasicAuth(site.username, site.appPassword);
     
     const headers = {
         'Authorization': `Basic ${authString}`,
@@ -71,52 +90,58 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
         if (response.ok) return await response.json();
         
         // If 401 (Unauthorized), no point trying fallback, creds are wrong.
-        if (response.status === 401) {
-            throw new Error("401 Unauthorized: Usuário ou Senha de Aplicação incorretos.");
+        if (response.status === 401 || response.status === 403) {
+            throw new Error(`Erro ${response.status}: Acesso Negado. Verifique Usuário e Senha de Aplicação.`);
         }
         
         // If 404, maybe API is disabled or moved. Try fallback.
         if (response.status !== 404) {
-            // For other errors (500, etc), throw to catch block but might retry if needed.
-            // Currently throwing to let the user know specific server error.
              const err = await response.json().catch(() => ({}));
              throw new Error(err.message || `Erro ${response.status} na rota padrão.`);
         }
     } catch (error: any) {
-        // Only retry if it's NOT an auth error and NOT a specific server error we already caught
-        if (String(error.message).includes('401') || String(error.message).includes('Erro 5')) {
+        const msg = String(error.message || '');
+        // Do not retry if explicit auth failure
+        if (msg.includes('Acesso Negado') || msg.includes('401') || msg.includes('403')) {
             throw error;
         }
         // Proceed to Strategy 2
-        console.warn("Standard API failed, trying fallback...", error);
+        console.warn(`Standard API (${urlStandard}) failed, trying fallback...`, error);
     }
 
     // Strategy 2: Query Param REST API (Plain Permalinks) -> /?rest_route=/wp/v2/...
-    // Note: endpointPath starts with /, so we remove it to avoid double slash if needed, 
-    // but rest_route needs it. e.g. ?rest_route=/posts
     const urlFallback = `${baseUrl}/?rest_route=/wp/v2${endpointPath}`;
     
     try {
         const response = await fetch(urlFallback, { ...options, headers });
         if (response.ok) return await response.json();
         
+        if (response.status === 401 || response.status === 403) {
+            throw new Error(`Erro ${response.status}: Acesso Negado (Fallback). Verifique Usuário e Senha.`);
+        }
+
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || `Erro ${response.status}: Falha na conexão (Fallback).`);
     } catch (error: any) {
         console.error("WP API Fallback Error:", error);
         
         let msg = error.message || "Falha desconhecida.";
-        if (msg.includes('Failed to fetch')) {
-            msg = "Erro de Rede/CORS. Verifique se o plugin de segurança (Wordfence/iThemes) não está bloqueando conexões externas.";
+        
+        // Improve error message for common "Failed to fetch" (CORS/Network)
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            msg = `Erro de Conexão/CORS. Verifique:
+            1. O site é HTTPS? (Obrigatório se este app usar HTTPS)
+            2. A URL está correta? (${baseUrl})
+            3. Algum plugin de segurança (Wordfence/iThemes) bloqueia a API REST?
+            4. Tente acessar ${baseUrl}/wp-json/wp/v2/posts no navegador para testar.`;
         }
+        
         throw new Error(msg);
     }
 };
 
 export const fetchWpCategories = async (site: WordpressSite): Promise<WordpressCategory[]> => {
     try {
-        // Using explicit query params manually appended because fallback strategy logic handles the base path
-        // We append query params to the endpoint path string.
         const data = await fetchWpWithFallback(site, '/categories?per_page=100&hide_empty=0', {
             method: 'GET'
         });
@@ -128,7 +153,7 @@ export const fetchWpCategories = async (site: WordpressSite): Promise<WordpressC
 
 export const uploadWpMedia = async (site: WordpressSite, file: File): Promise<number> => {
     const baseUrl = cleanWpUrl(site.url);
-    const authString = btoa(`${site.username}:${site.appPassword}`);
+    const authString = encodeBasicAuth(site.username, site.appPassword);
 
     // Media upload is tricky with the generic fallback because body is binary.
     // We try standard first, then fallback manually to control headers precisely.
