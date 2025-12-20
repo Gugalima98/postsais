@@ -62,11 +62,15 @@ const cleanWpUrl = (url: string): string => {
 
 // Safe Basic Auth Encoding for Unicode (e.g. special chars in password)
 const encodeBasicAuth = (user: string, pass: string) => {
+    // Ensure no spaces
+    const safeUser = user.trim();
+    const safePass = pass.trim();
+
     // btoa alone fails on unicode strings, we need to escape first
     try {
-        return btoa(unescape(encodeURIComponent(`${user}:${pass}`)));
+        return btoa(unescape(encodeURIComponent(`${safeUser}:${safePass}`)));
     } catch (e) {
-        return btoa(`${user}:${pass}`);
+        return btoa(`${safeUser}:${safePass}`);
     }
 };
 
@@ -81,59 +85,78 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
         ...(options.headers as Record<string, string> || {})
     };
 
-    // Strategy 1: Standard REST API (Pretty Permalinks) -> /wp-json/wp/v2/...
+    // --- STRATEGY 1: Standard REST API ---
     const urlStandard = `${baseUrl}/wp-json/wp/v2${endpointPath}`;
     
     try {
+        console.log(`[WP] Trying Strategy 1: ${urlStandard}`);
         const response = await fetch(urlStandard, { ...options, headers });
         
         if (response.ok) return await response.json();
         
-        // If 401 (Unauthorized), no point trying fallback, creds are wrong.
         if (response.status === 401 || response.status === 403) {
             throw new Error(`Erro ${response.status}: Acesso Negado. Verifique Usuário e Senha de Aplicação.`);
         }
         
-        // If 404, maybe API is disabled or moved. Try fallback.
         if (response.status !== 404) {
              const err = await response.json().catch(() => ({}));
              throw new Error(err.message || `Erro ${response.status} na rota padrão.`);
         }
     } catch (error: any) {
         const msg = String(error.message || '');
-        // Do not retry if explicit auth failure
         if (msg.includes('Acesso Negado') || msg.includes('401') || msg.includes('403')) {
-            throw error;
+            throw error; // Auth errors are real errors, don't retry
         }
-        // Proceed to Strategy 2
-        console.warn(`Standard API (${urlStandard}) failed, trying fallback...`, error);
+        console.warn(`Strategy 1 failed (${msg}), trying Strategy 2...`);
     }
 
-    // Strategy 2: Query Param REST API (Plain Permalinks) -> /?rest_route=/wp/v2/...
+    // --- STRATEGY 2: Query Param REST API (Plain Permalinks) ---
     const urlFallback = `${baseUrl}/?rest_route=/wp/v2${endpointPath}`;
     
     try {
+        console.log(`[WP] Trying Strategy 2: ${urlFallback}`);
         const response = await fetch(urlFallback, { ...options, headers });
         if (response.ok) return await response.json();
         
         if (response.status === 401 || response.status === 403) {
             throw new Error(`Erro ${response.status}: Acesso Negado (Fallback). Verifique Usuário e Senha.`);
         }
+    } catch (error: any) {
+        console.warn(`Strategy 2 failed (${error.message}), trying Strategy 3 (Proxy)...`);
+    }
+
+    // --- STRATEGY 3: CORS Proxy Bypass ---
+    // This routes the request through a public proxy to strip CORS headers
+    // Using corsproxy.io which is reliable for keeping headers
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(urlStandard)}`;
+
+    try {
+        console.log(`[WP] Trying Strategy 3 (Proxy): ${proxyUrl}`);
+        const response = await fetch(proxyUrl, { ...options, headers });
+        
+        if (response.ok) return await response.json();
+
+        if (response.status === 401 || response.status === 403) {
+             throw new Error(`Erro ${response.status}: Acesso Negado via Proxy.`);
+        }
 
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || `Erro ${response.status}: Falha na conexão (Fallback).`);
+        throw new Error(err.message || `Erro ${response.status} via Proxy.`);
+
     } catch (error: any) {
-        console.error("WP API Fallback Error:", error);
+        console.error("All WP Strategies failed.", error);
         
         let msg = error.message || "Falha desconhecida.";
         
-        // Improve error message for common "Failed to fetch" (CORS/Network)
         if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-            msg = `Erro de Conexão/CORS. Verifique:
-            1. O site é HTTPS? (Obrigatório se este app usar HTTPS)
-            2. A URL está correta? (${baseUrl})
-            3. Algum plugin de segurança (Wordfence/iThemes) bloqueia a API REST?
-            4. Tente acessar ${baseUrl}/wp-json/wp/v2/posts no navegador para testar.`;
+            msg = `BLOQUEIO DE SEGURANÇA (CORS): 
+            Seu site (${baseUrl}) está bloqueando conexões externas.
+            
+            Soluções:
+            1. Instale o plugin "Application Passwords" (se não tiver nativo).
+            2. Instale um plugin de "CORS" no WordPress.
+            3. Verifique se firewall (Wordfence/Cloudflare) não está bloqueando a API REST.
+            4. Tente acessar ${urlStandard} no navegador para ver se abre.`;
         }
         
         throw new Error(msg);
@@ -142,6 +165,8 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
 
 export const fetchWpCategories = async (site: WordpressSite): Promise<WordpressCategory[]> => {
     try {
+        // Query param ensures we get enough cats and non-empty ones usually
+        // Note: strategy fallback handles the path construction
         const data = await fetchWpWithFallback(site, '/categories?per_page=100&hide_empty=0', {
             method: 'GET'
         });
@@ -154,10 +179,10 @@ export const fetchWpCategories = async (site: WordpressSite): Promise<WordpressC
 export const uploadWpMedia = async (site: WordpressSite, file: File): Promise<number> => {
     const baseUrl = cleanWpUrl(site.url);
     const authString = encodeBasicAuth(site.username, site.appPassword);
-
-    // Media upload is tricky with the generic fallback because body is binary.
-    // We try standard first, then fallback manually to control headers precisely.
-
+    
+    // For media, the Proxy strategy is harder due to binary body.
+    // We try standard first, then fallback.
+    
     const tryUpload = async (url: string) => {
         const response = await fetch(url, {
             method: 'POST',
@@ -186,7 +211,24 @@ export const uploadWpMedia = async (site: WordpressSite, file: File): Promise<nu
             const data = await tryUpload(`${baseUrl}/?rest_route=/wp/v2/media`);
             return data.id;
         } catch (e2: any) {
-            throw new Error("Falha ao enviar imagem (CORS ou Permissões).");
+            // Try Proxy for Media
+            try {
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`${baseUrl}/wp-json/wp/v2/media`)}`;
+                 const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${authString}`,
+                        'Content-Disposition': `attachment; filename="${file.name}"`,
+                        'Content-Type': file.type
+                    },
+                    body: file
+                });
+                if (!response.ok) throw new Error("Proxy Media Fail");
+                const data = await response.json();
+                return data.id;
+            } catch (e3) {
+                 throw new Error("Falha ao enviar imagem (CORS/Bloqueio).");
+            }
         }
     }
 };
