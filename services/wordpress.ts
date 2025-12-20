@@ -71,12 +71,42 @@ export const fetchWpCategories = async (site: WordpressSite): Promise<WordpressC
     }
 };
 
+export const uploadWpMedia = async (site: WordpressSite, file: File): Promise<number> => {
+    const authString = btoa(`${site.username}:${site.appPassword}`);
+    const baseUrl = site.url.replace(/\/$/, '');
+
+    try {
+        const response = await fetch(`${baseUrl}/wp-json/wp/v2/media`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Disposition': `attachment; filename="${file.name}"`,
+                'Content-Type': file.type
+            },
+            body: file
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || `Erro ${response.status}: Falha ao enviar imagem.`);
+        }
+
+        const data = await response.json();
+        return data.id; // Return the Media ID
+    } catch (error: any) {
+        console.error("WP Upload Error:", error);
+        throw new Error(error.message || "Falha ao fazer upload da imagem.");
+    }
+};
+
 export interface CreatePostParams {
     title: string;
     content: string; // Markdown
     status: 'publish' | 'draft';
     slug: string;
     categories?: number[];
+    excerpt?: string;      // Meta Description
+    featuredMediaId?: number; // Featured Image ID
 }
 
 export const createWpPost = async (site: WordpressSite, params: CreatePostParams) => {
@@ -95,6 +125,14 @@ export const createWpPost = async (site: WordpressSite, params: CreatePostParams
 
     if (params.categories && params.categories.length > 0) {
         body.categories = params.categories;
+    }
+
+    if (params.excerpt) {
+        body.excerpt = params.excerpt;
+    }
+
+    if (params.featuredMediaId) {
+        body.featured_media = params.featuredMediaId;
     }
 
     try {

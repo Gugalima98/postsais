@@ -3,11 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import { 
     FileText, Link as LinkIcon, ArrowRight, Globe, Layout, Type, 
     Image as ImageIcon, CheckCircle, Loader2, Bold, Italic, 
-    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink
+    List, Heading2, Heading3, Quote, Eye, Code, Plus, Server, User, Lock, X, AlertTriangle, ExternalLink, Trash2, Search
 } from 'lucide-react';
 import { extractSheetId } from '../services/sheets';
 import { getGoogleDocContent } from '../services/drive';
-import { fetchWpCategories, createWpPost } from '../services/wordpress';
+import { fetchWpCategories, createWpPost, uploadWpMedia } from '../services/wordpress';
 import { WordpressSite, WordpressCategory } from '../types';
 
 interface WordpressPublisherProps {
@@ -25,7 +25,13 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
   const [content, setContent] = useState('');
   const [gdocLink, setGdocLink] = useState('');
   const [slug, setSlug] = useState('');
+  const [metaDesc, setMetaDesc] = useState('');
   
+  // Image State
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Site Management State
   const [sites, setSites] = useState<WordpressSite[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
@@ -40,7 +46,7 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
 
   // UI State
   const [isLoading, setIsLoading] = useState(false); // For Import
-  const [publishingStatus, setPublishingStatus] = useState<'idle' | 'drafting' | 'publishing'>('idle');
+  const [publishingStatus, setPublishingStatus] = useState<'idle' | 'uploading_img' | 'drafting' | 'publishing'>('idle');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState<{msg: string, link: string} | null>(null);
 
@@ -147,6 +153,22 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
 
   const getSelectedSite = () => sites.find(s => s.id === selectedSiteId);
 
+  // --- IMAGE HANDLING ---
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          setImageFile(file);
+          const previewUrl = URL.createObjectURL(file);
+          setImagePreview(previewUrl);
+      }
+  };
+
+  const removeImage = () => {
+      setImageFile(null);
+      setImagePreview('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   // --- PUBLISHING LOGIC ---
   const handlePublish = async (status: 'publish' | 'draft') => {
       setError('');
@@ -162,15 +184,24 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
           return;
       }
 
-      setPublishingStatus(status === 'publish' ? 'publishing' : 'drafting');
-
       try {
+          // 1. Upload Image (if exists)
+          let featuredMediaId = undefined;
+          if (imageFile) {
+              setPublishingStatus('uploading_img');
+              featuredMediaId = await uploadWpMedia(site, imageFile);
+          }
+
+          // 2. Create Post
+          setPublishingStatus(status === 'publish' ? 'publishing' : 'drafting');
           const result = await createWpPost(site, {
               title,
               content,
               status,
               slug,
-              categories: selectedCategoryId ? [Number(selectedCategoryId)] : []
+              excerpt: metaDesc,
+              categories: selectedCategoryId ? [Number(selectedCategoryId)] : [],
+              featuredMediaId
           });
 
           setSuccessMsg({
@@ -501,8 +532,8 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
                     disabled={publishingStatus !== 'idle'}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/20"
                 >
-                    {publishingStatus === 'publishing' ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4" />} 
-                    Publicar
+                    {publishingStatus === 'publishing' || publishingStatus === 'uploading_img' ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4" />} 
+                    {publishingStatus === 'uploading_img' ? 'Enviando Foto...' : 'Publicar'}
                 </button>
             </div>
         </div>
@@ -687,14 +718,58 @@ const WordpressPublisher: React.FC<WordpressPublisherProps> = ({ initialTitle, i
                         />
                     </div>
 
+                    {/* Featured Image */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
                             <ImageIcon className="w-4 h-4 text-slate-500" /> Imagem Destacada
                         </label>
-                        <div className="h-32 bg-slate-950 border border-dashed border-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-600 gap-2 hover:bg-slate-950/50 hover:border-slate-700 transition-colors cursor-pointer">
-                            <ImageIcon className="w-6 h-6 opacity-50" />
-                            <span className="text-xs">Clique para upload</span>
+                        <div 
+                            className="h-32 bg-slate-950 border border-dashed border-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-600 gap-2 hover:bg-slate-950/50 hover:border-slate-700 transition-colors cursor-pointer relative overflow-hidden group"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            {imagePreview ? (
+                                <>
+                                    <img src={imagePreview} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
+                                    <div className="absolute inset-0 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-xs bg-slate-900/80 px-2 py-1 rounded text-white">Alterar Imagem</span>
+                                    </div>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); removeImage(); }}
+                                        className="absolute top-2 right-2 p-1 bg-red-600/80 text-white rounded hover:bg-red-500 z-20"
+                                        title="Remover Imagem"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <ImageIcon className="w-6 h-6 opacity-50" />
+                                    <span className="text-xs">Clique para upload</span>
+                                </>
+                            )}
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*"
+                                onChange={handleImageSelect}
+                            />
                         </div>
+                    </div>
+
+                    {/* Meta Description */}
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                            <Search className="w-4 h-4 text-slate-500" /> Meta Descrição
+                        </label>
+                        <textarea
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 outline-none resize-none h-24"
+                            placeholder="Resumo curto para o Google..."
+                            value={metaDesc}
+                            onChange={(e) => setMetaDesc(e.target.value)}
+                            maxLength={160}
+                        />
+                        <p className="text-[10px] text-slate-600 text-right">{metaDesc.length}/160 caracteres</p>
                     </div>
 
                     <div className="pt-6 border-t border-slate-800">
