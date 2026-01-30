@@ -130,7 +130,7 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
     // --- STRATEGY 3: CORS Proxy Standard ---
     try {
         const target = `${baseUrl}/wp-json/wp/v2${endpointPath}`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
         return await tryStrategy("Strategy 3 (Proxy Standard)", proxyUrl);
     } catch (e: any) {
         if (e.message.includes("Acesso Negado")) throw e;
@@ -142,7 +142,7 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
     // Useful when firewall blocks /wp-json/ even via proxy, but allows query params
     try {
         const target = `${baseUrl}/?rest_route=/wp/v2${endpointPath}`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
         return await tryStrategy("Strategy 4 (Proxy Fallback)", proxyUrl);
     } catch (e: any) {
         if (e.message.includes("Acesso Negado")) throw e;
@@ -182,7 +182,7 @@ export const uploadWpMedia = async (site: WordpressSite, file: File): Promise<nu
     // Media Upload Strategies (Manual implementation required due to binary body)
     
     const tryUpload = async (url: string, useProxy = false) => {
-        const finalUrl = useProxy ? `https://corsproxy.io/?${encodeURIComponent(url)}` : url;
+        const finalUrl = useProxy ? `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` : url;
         
         const response = await fetch(finalUrl, {
             method: 'POST',
