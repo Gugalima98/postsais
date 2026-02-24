@@ -71,7 +71,7 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
         const ai = new GoogleGenAI({ apiKey });
         
         const response = await ai.models.generateContent({
-            model: 'gemini-1.5-pro',
+            model: 'gemini-1.5-pro-latest',
             contents: prompt,
             config: {
                 thinkingConfig: { thinkingBudget: 1024 },
