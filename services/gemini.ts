@@ -45,7 +45,7 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     - A palavra-chave "${req.keyword}" deve ser utilizada de forma natural, SEM excessos ou protagonismo exagerado. O foco real é o elo entre os dois universos acima.
     
     REQUISITOS:
-    1. **Título Híbrido e Chamativo**: Crie um título extremamente engajador e orgânico que misture APENAS os interesses do público do Nicho "${req.hostNiche}" com os benefícios do Nicho "${req.targetNiche}".
+    1. **Título Contextual**: Crie um título natural que contextualize o Nicho "${req.hostNiche}" com o Nicho "${req.targetNiche}". Não use formatos robóticos, seja criativo e orgânico.
     
     2. **O Equilíbrio Natural (50/50)**: Reserve estritamente a primeira metade do texto para explorar o universo, curiosidades e dores do público do Nicho "${req.hostNiche}". Só na segunda metade do texto faça uma transição lógica para apresentar o Nicho "${req.targetNiche}" como evolução do assunto. Todo o conteúdo deve ser uma conexão elegante e não forçada entre esses dois pólos.
     
