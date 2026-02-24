@@ -45,9 +45,9 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     - A palavra-chave "${req.keyword}" deve ser utilizada de forma natural, SEM excessos ou protagonismo exagerado. O foco real é o elo entre os dois universos acima.
     
     REQUISITOS:
-    1. **Título Híbrido e Chamativo**: Crie um título que capte a atenção do público do Nicho "${req.hostNiche}" e introduza o benefício do universo do Nicho "${req.targetNiche}". Use a palavra-chave "${req.keyword}" no título de forma natural se couber, mas o foco é sempre a atratividade do assunto para os dois públicos.
+    1. **Título Híbrido e Chamativo**: Crie um título extremamente engajador e orgânico que misture APENAS os interesses do público do Nicho "${req.hostNiche}" com os benefícios do Nicho "${req.targetNiche}".
     
-    2. **O Equilíbrio e a Ponte (50/50)**: O texto DEVE construir uma história natural entre o Nicho do Hospedeiro e o Nicho do Alvo, não apenas focar na palavra-chave. Reserve a primeira metade do artigo para explorar as dores, interesses ou o universo do público do Nicho "${req.hostNiche}". Em seguida, faça uma transição lógica e gradual apresentando o Nicho "${req.targetNiche}" e a palavra-chave "${req.keyword}" como complemento, solução ou evolução das ideias já tratadas. A transição deve ser orgânica e sutil.
+    2. **O Equilíbrio Natural (50/50)**: Reserve estritamente a primeira metade do texto para explorar o universo, curiosidades e dores do público do Nicho "${req.hostNiche}". Só na segunda metade do texto faça uma transição lógica para apresentar o Nicho "${req.targetNiche}" como evolução do assunto. Todo o conteúdo deve ser uma conexão elegante e não forçada entre esses dois pólos.
     
     3. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
     
