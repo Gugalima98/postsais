@@ -42,12 +42,12 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     O objetivo principal deste artigo é criar uma ponte natural e orgânica entre dois universos distintos:
     - O Site Hospedeiro (onde será postado), focado no Nicho: "${req.hostNiche}".
     - O Site Alvo (para onde aponta o backlink), focado no Nicho: "${req.targetNiche}".
-    - O tópico central ou palavra-chave que deve ligar os dois mundos é: "${req.keyword}".
+    - A palavra-chave "${req.keyword}" deve ser utilizada de forma natural, SEM excessos ou protagonismo exagerado. O foco real é o elo entre os dois universos acima.
     
     REQUISITOS:
-    1. **Título Híbrido e Chamativo**: Crie um título que capte a atenção do público do Nicho "${req.hostNiche}" e introduza sutilmente o benefício ou tema do Nicho "${req.targetNiche}". O título deve otimizar para SEO usando a palavra-chave "${req.keyword}" se possível, ou o contexto ao redor dela.
+    1. **Título Híbrido e Chamativo**: Crie um título que capte a atenção do público do Nicho "${req.hostNiche}" e introduza o benefício do universo do Nicho "${req.targetNiche}". Use a palavra-chave "${req.keyword}" no título de forma natural se couber, mas o foco é sempre a atratividade do assunto para os dois públicos.
     
-    2. **O Equilíbrio Perfeito (50/50)**: O texto NÃO deve ser apenas sobre o Nicho do Alvo nem apenas sobre a palavra-chave. Reserve pelo menos metade do artigo explorando dores, desejos ou curiosidades do público do Nicho "${req.hostNiche}". Em seguida, introduza o Nicho "${req.targetNiche}" e a palavra-chave "${req.keyword}" como a solução, complemento ideal ou evolução natural daquela discussão.
+    2. **O Equilíbrio e a Ponte (50/50)**: O texto DEVE construir uma história natural entre o Nicho do Hospedeiro e o Nicho do Alvo, não apenas focar na palavra-chave. Reserve a primeira metade do artigo para explorar as dores, interesses ou o universo do público do Nicho "${req.hostNiche}". Em seguida, faça uma transição lógica e gradual apresentando o Nicho "${req.targetNiche}" e a palavra-chave "${req.keyword}" como complemento, solução ou evolução das ideias já tratadas. A transição deve ser orgânica e sutil.
     
     3. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
     
