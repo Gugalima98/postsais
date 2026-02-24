@@ -220,6 +220,12 @@ const App: React.FC = () => {
 
     rowsToProcess.forEach((row, index) => {
         if (!row[0]) return;
+        
+        // Pula se a coluna F (index 5) já tiver algum conteúdo (artigo já publicado)
+        if (row[5] && String(row[5]).trim() !== '') {
+            return;
+        }
+
         const req: GuestPostRequest = {
             id: generateId(),
             keyword: row[0],

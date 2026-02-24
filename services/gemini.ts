@@ -98,11 +98,14 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
         // If it's a safety filter error (which is prompt related, not key related), usually we shouldn't retry with another key.
         // However, standard API errors like 429 (Quota), 500, 503 should definitely retry with next key.
         // For simplicity and robustness in batch mode, we continue to the next key on almost any error.
+        
+        // Espera 3 segundos antes de tentar a próxima chave para evitar ban imediato por Rate Limit sequencial 
+        await new Promise(resolve => setTimeout(resolve, 3000));
         continue;
       }
   }
 
   // If we exit the loop, all keys failed
-  const finalErrorMsg = lastError?.message || lastError?.toString() || "Todas as chaves API falharam.";
-  throw new Error(finalErrorMsg);
+  const finalErrorMsg = lastError?.message || lastError?.toString() || "Erro desconhecido.";
+  throw new Error(`Tentou gerar em ${apiKeys.length} chaves diferentes e todas falharam (Cotão excedido ou erro). Último erro: ${finalErrorMsg}`);
 };

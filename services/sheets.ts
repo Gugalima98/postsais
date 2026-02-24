@@ -6,9 +6,9 @@ export const extractSheetId = (urlOrId: string): string | null => {
 };
 
 export const fetchSheetRows = async (accessToken: string, spreadsheetId: string) => {
-    // Fetches columns A to E. Using 'A2:E' lets Google determine the last row automatically.
+    // Fetches columns A to F. Using 'A2:F' lets Google determine the last row automatically.
     const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A2:E`, 
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A2:F`, 
         {
             headers: { Authorization: `Bearer ${accessToken}` }
         }
