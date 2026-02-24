@@ -35,26 +35,32 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
   const prompt = `
     Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
     
-    TAREFA: Escrever um artigo de Guest Post de alta qualidade e engajamento.
+    TAREFA: Escrever um artigo de Guest Post de alta qualidade, extremamente engajador e aprofundado.
     IDIOMA: Português do Brasil (pt-BR).
     
-    CONTEXTO:
-    - O artigo será publicado em um Site Hospedeiro (Nicho: "${req.hostNiche}").
-    - O artigo deve linkar para um Site Alvo (Nicho: "${req.targetNiche}").
-    - O tópico principal/palavra-chave é: "${req.keyword}".
+    CONTEXTO E DESAFIO:
+    O objetivo principal deste artigo é criar uma ponte natural e orgânica entre dois universos distintos:
+    - O Site Hospedeiro (onde será postado), focado no Nicho: "${req.hostNiche}".
+    - O Site Alvo (para onde aponta o backlink), focado no Nicho: "${req.targetNiche}".
+    - O tópico central ou palavra-chave que deve ligar os dois mundos é: "${req.keyword}".
     
     REQUISITOS:
-    1. **Título**: Crie um título chamativo e otimizado para SEO, relevante para o Nicho do Hospedeiro.
-    2. **Tom de Voz**: Profissional, informativo e que se encaixe naturalmente com a audiência do Site Hospedeiro.
-    3. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points e parágrafos curtos para facilitar a leitura.
-    4. **A Ponte (Contexto)**: Faça uma transição inteligente e natural entre o Nicho do Hospedeiro (${req.hostNiche}) e o Nicho do Alvo (${req.targetNiche}). A conexão não deve parecer forçada.
-    5. **O Link**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
-    6. **Formato do Link**: Use o formato de link Markdown: [${req.anchorText}](${req.targetLink}).
-    7. **Conteúdo**: Escreva entre 600-800 palavras de conteúdo valioso.
-    8. **Conclusão**: Resuma os pontos chave e encoraje o engajamento do leitor.
+    1. **Título Híbrido e Chamativo**: Crie um título que capte a atenção do público do Nicho "${req.hostNiche}" e introduza sutilmente o benefício ou tema do Nicho "${req.targetNiche}". O título deve otimizar para SEO usando a palavra-chave "${req.keyword}" se possível, ou o contexto ao redor dela.
+    
+    2. **O Equilíbrio Perfeito (50/50)**: O texto NÃO deve ser apenas sobre o Nicho do Alvo nem apenas sobre a palavra-chave. Reserve pelo menos metade do artigo explorando dores, desejos ou curiosidades do público do Nicho "${req.hostNiche}". Em seguida, introduza o Nicho "${req.targetNiche}" e a palavra-chave "${req.keyword}" como a solução, complemento ideal ou evolução natural daquela discussão.
+    
+    3. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
+    
+    4. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points, parágrafos curtos para escaneabilidade e aplique gatilhos mentais e storytelling.
+    
+    5. **O Link (MUITO IMPORTANTE)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
+    
+    6. **Formato do Link**: Use o formato de link Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}). 
+    
+    7. **Conclusão e CTA**: Encerre de forma inspiradora e faça os temas conversarem uma última vez.
 
-    SAÍDA:
-    Retorne APENAS o conteúdo do artigo em Markdown. Não inclua texto introdutório ou explicações como "Aqui está o artigo".
+    SAÍDA EXIGIDA:
+    Retorne APENAS o conteúdo completo do artigo em formato Markdown. Não inclua NENHUM texto introdutório do tipo "Aqui está o artigo" ou considerações finais.
   `;
 
   let lastError: any = null;
