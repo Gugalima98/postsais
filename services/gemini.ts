@@ -74,7 +74,6 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                thinkingConfig: { thinkingBudget: 1024 },
                 maxOutputTokens: 8192, 
             }
         });
