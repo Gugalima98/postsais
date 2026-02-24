@@ -45,7 +45,13 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     - A palavra-chave "${req.keyword}" deve ser utilizada de forma natural, SEM excessos ou protagonismo exagerado. O foco real é o elo entre os dois universos acima.
     
     REQUISITOS:
-    1. **Título**: Escreva um título curto, simples e direto. Forme apenas UMA frase unindo os temas "${req.hostNiche}" e "${req.targetNiche}". NÃO use dois pontos (:) e nem divida o título em duas partes.
+    1. **Título (Estilo Editorial)**: Crie um título orgânico, intrigante e contextual, como a manchete de uma revista especializada ou portal de notícias focado em "${req.hostNiche}".
+       - A base do título deve ser o universo do Site Hospedeiro ("${req.hostNiche}"), abordando um desafio real, curiosidade ou dor desse público.
+       - O universo do Site Alvo ("${req.targetNiche}") deve entrar no título apenas como o contexto inesperado, a solução sutil ou o fator de inovação que eleva a discussão, conectando os dois temas de forma fluida.
+       - PROIBIDO o uso de dois pontos (:) para dividir o título em dois blocos. Forme uma única frase coesa.
+       - PROIBIDO o uso de clichês de internet ("Descubra como...", "O Guia Definitivo...", "O Segredo de...", "Tudo o que você precisa").
+       - EXEMPLO BOM (Hospedeiro: Arquitetura / Alvo: Saúde Mental): "O impacto direto da iluminação natural e do design biofílico na estabilidade emocional e redução da ansiedade"
+       - EXEMPLO RUIM (Hospedeiro: Arquitetura / Alvo: Saúde Mental): "Arquitetura e Saúde Mental: Como projetar espaços que curam a ansiedade"
     
     2. **O Equilíbrio Natural (50/50)**: Reserve estritamente a primeira metade do texto para explorar o universo, curiosidades e dores do público do Nicho "${req.hostNiche}". Só na segunda metade do texto faça uma transição lógica para apresentar o Nicho "${req.targetNiche}" como evolução do assunto. Todo o conteúdo deve ser uma conexão elegante e não forçada entre esses dois pólos.
     
