@@ -32,76 +32,23 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
       throw new Error("Nenhuma chave API do Gemini encontrada. Configure nas Configurações ou no arquivo .env");
   }
 
-  // Lê o prompt customizado, se houver
+  // Lê o prompt customizado
   let customPromptStr = "";
   try {
       customPromptStr = localStorage.getItem('guestpost_custom_prompt') || "";
   } catch(e) {}
 
-  let prompt = "";
-
-  if (customPromptStr.trim().length > 0) {
-      // Se tiver prompt salvo, injeta as variáveis do request nele
-      prompt = customPromptStr
-        .replace(/\$\{req\.hostNiche\}/g, req.hostNiche)
-        .replace(/\$\{req\.targetNiche\}/g, req.targetNiche)
-        .replace(/\$\{req\.keyword\}/g, req.keyword)
-        .replace(/\$\{req\.anchorText\}/g, req.anchorText)
-        .replace(/\$\{req\.targetLink\}/g, req.targetLink);
-  } else {
-      // Prompt padrão
-      prompt = `Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
-
-TAREFA: Escrever um artigo de Guest Post de alta qualidade, engajador e aprofundado.
-
-IDIOMA: Português do Brasil (pt-BR).
-
-CONTEXTO E DESAFIO:
-
-- O Site Hospedeiro (onde será postado) é do Nicho: "${req.hostNiche}".
-
-- O Site Alvo (para onde aponta o backlink) é do Nicho: "${req.targetNiche}".
-
-- A palavra-chave "${req.keyword}" deve ser utilizada de forma 100% natural e contextualizada no meio do texto.
-
-REQUISITOS OBRIGATÓRIOS:
-
-1. **REGRA DE OURO DO TÍTULO**: O título DEVE SER 100% focado no Nicho "${req.hostNiche}".
-
-- Trate como se você estivesse escrevendo exclusivamente para um blog de "${req.hostNiche}".
-
-- É ESTRITAMENTE PROIBIDO mencionar, sugerir ou dar a entender qualquer coisa relacionada ao Nicho "${req.targetNiche}" no título.
-
-- PROIBIDO o uso de palavras que remetam a "${req.targetNiche}".
-
-- PROIBIDO tons poéticos, filosóficos ou clichês de internet ("A Arte de...", "O Segredo de...", "Descubra...").
-
-- Seja direto, resolvendo uma dor ou curiosidade do público de "${req.hostNiche}".
-
-- PROIBIDO o uso de dois pontos (:) ou traços (-) para dividir o título.
-
-2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" e a palavra-chave devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto. A palavra-chave NUNCA deve ser o destaque do texto.
-
-3. **A Regra da Transição Orgânica (A Cimentação da Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
-
-- A inserção deve passar em um "teste de naturalidade falada". Se lido em voz alta, a frase da âncora não pode soar robótica, estrangeira ou forçada (Exemplo de erro: "na busca por uma residência, como um [quinta da baroneza aluguel]").
-
-- Se a palavra-chave ("${req.keyword}") for solta ou truncada (como termos de busca de Google ex: "comprar apartamento sp"), você DEVE construir uma frase de apoio ao redor dela para que ela faça sentido gramatical (ex: "quem decide [comprar apartamento sp] enfrenta os mesmos dilemas de ansiedade").
-
-- Introduza o Nicho alvo ("${req.targetNiche}") como um exemplo pontual e cotidiano da vida real de alguem do Nicho "${req.hostNiche}", e não como a solução mágica de todos os problemas. Apenas cite de passagem, coloque o link, e continue o raciocínio focado original.
-
-- Formato do Link: Use INVARIAVELMENTE o formato Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}).
-
-4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**.
-
-5. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points e parágrafos curtos.
-
-6. **Conclusão**: Encerre focando totalmente no aprendizado para o Nicho "${req.hostNiche}". O site alvo não deve ser a conclusão da história.
-
-SAÍDA EXIGIDA:
-
-Retorne APENAS o conteúdo completo do artigo em formato Markdown, começando com o # Título. Não inclua texto introdutório.`;
+  if (customPromptStr.trim().length === 0) {
+      throw new Error("Nenhum prompt configurado. Por favor, vá em Configurações e salve o seu prompt da IA.");
   }
+
+  // Injeta as variáveis do request nele
+  const prompt = customPromptStr
+    .replace(/\$\{req\.hostNiche\}/g, req.hostNiche)
+    .replace(/\$\{req\.targetNiche\}/g, req.targetNiche)
+    .replace(/\$\{req\.keyword\}/g, req.keyword)
+    .replace(/\$\{req\.anchorText\}/g, req.anchorText)
+    .replace(/\$\{req\.targetLink\}/g, req.targetLink);
 
   let lastError: any = null;
 

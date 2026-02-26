@@ -58,6 +58,31 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
     const storedPrompt = localStorage.getItem('guestpost_custom_prompt');
     if (storedPrompt) {
         setCustomPrompt(storedPrompt);
+    } else {
+        // Initial Default Prompt if nothing is saved
+        setCustomPrompt(`Você é um redator especialista em SEO Content e estrategista de Link Building (Copywriter Senior).
+
+TAREFA: Escrever um artigo de Guest Post de altíssima qualidade, denso e engajador, pronto para publicação.
+IDIOMA: Português do Brasil (pt-BR).
+
+DADOS DO PROJETO:
+- Nicho do Site Hospedeiro (onde será postado): "\${req.hostNiche}"
+- Nicho do Site Alvo (para onde o link aponta): "\${req.targetNiche}"
+- Texto Âncora Exato: "\${req.anchorText}"
+- Link Alvo: "\${req.targetLink}"
+- Palavra-chave de Contexto: "\${req.keyword}"
+
+DIRETRIZES DE CONTEÚDO E TOM:
+1. FOCO TOTAL NO HOSPEDEIRO: O artigo pertence 100% ao universo do nicho "\${req.hostNiche}". Escreva para a audiência deste nicho. O tom deve ser direto, jornalístico, prático e focado em resolver dores reais desse público. Evite introduções longas e clichês.
+2. TÍTULO MAGNÉTICO (H1): Crie um título altamente atraente e focado exclusivamente em "\${req.hostNiche}". O título deve ser limpo (sem o uso de dois pontos ou traços) e não pode, sob nenhuma hipótese, fazer menção ou alusão ao nicho alvo ("\${req.targetNiche}").
+3. DESENVOLVIMENTO PROFUNDO: Estruture o texto com H2 e H3. Em vez de focar em contagem de palavras, foque em densidade. Desenvolva pelo menos 4 a 5 seções aprofundadas sobre o tema principal. Explique o "como" e o "porquê" das coisas.
+4. A PONTE SEMÂNTICA (A INSERÇÃO DO LINK): O nicho alvo ("\${req.targetNiche}") deve entrar no texto apenas como um exemplo prático, uma ferramenta ou uma citação rápida que apoia o raciocínio do nicho principal. A transição deve ser imperceptível. 
+5. REGRA DO TEXTO ÂNCORA: Insira o texto âncora exato ("\${req.anchorText}") apenas UMA VEZ no texto. A frase que contém a âncora deve ter fluidez gramatical perfeita ("teste de leitura em voz alta"). Se a âncora for um termo de busca truncado, construa a frase ao redor para que faça sentido absoluto.
+6. FORMATO DO LINK: A âncora deve OBRIGATORIAMENTE ser formatada em Markdown desta exata maneira: [\${req.anchorText}](\${req.targetLink}). Nenhuma outra palavra deve entrar nos colchetes.
+7. CONCLUSÃO: O artigo deve terminar reforçando o aprendizado principal para o público de "\${req.hostNiche}". Não mencione a solução do site alvo na conclusão.
+
+SAÍDA EXIGIDA:
+Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretamente pelo # Título. Nenhuma palavra antes ou depois do artigo.`);
     }
   }, []);
 
@@ -121,7 +146,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
           // Try to fetch categories using the service
           const cats = await fetchWpCategories(editingSite);
           setWpTestStatus('success');
-          setWpTestMsg(`Conexão OK! ${cats.length} categorias encontradas.`);
+          setWpTestMsg(`Conexão OK! \${cats.length} categorias encontradas.`);
       } catch (e: any) {
           setWpTestStatus('error');
           setWpTestMsg('Falha: ' + (e.message || 'Erro desconhecido. Verifique URL/Credenciais/CORS.'));
@@ -219,9 +244,9 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                     <h3 className="text-base font-bold text-white">Modo de Demonstração</h3>
                     <button 
                         onClick={() => setIsDemo(!isDemo)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${isDemo ? 'bg-indigo-500' : 'bg-slate-700'}`}
+                        className={\`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 \${isDemo ? 'bg-indigo-500' : 'bg-slate-700'}\`}
                     >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDemo ? 'translate-x-6' : 'translate-x-1'}`} />
+                        <span className={\`inline-block h-4 w-4 transform rounded-full bg-white transition-transform \${isDemo ? 'translate-x-6' : 'translate-x-1'}\`} />
                     </button>
                 </div>
                 <p className="text-sm text-slate-300">
@@ -230,7 +255,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
              </div>
         </div>
 
-        <div className={`space-y-8 transition-opacity ${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+        <div className={\`space-y-8 transition-opacity \${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}\`}>
             
             {/* GEMINI API KEYS SECTION */}
             <div className="flex items-start gap-4">
@@ -294,21 +319,39 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                 </div>
                 <div className="flex-1 space-y-4">
                     <div>
-                        <h3 className="text-lg font-semibold text-white">Prompt Personalizado (Opcional)</h3>
+                        <h3 className="text-lg font-semibold text-white">Prompt do Sistema</h3>
                         <p className="text-sm text-slate-400 mt-1">
-                            Se preenchido, este prompt substituirá o prompt padrão do sistema. 
-                            Use as variáveis: <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300">{"${req.hostNiche}"}</code>, 
-                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.targetNiche}"}</code>, 
-                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.keyword}"}</code>, 
-                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.anchorText}"}</code>, 
-                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.targetLink}"}</code>.
+                            Este é o prompt exato que será enviado para a inteligência artificial. Você pode editá-lo à vontade. Mantenha as seguintes variáveis para que a aplicação consiga injetar os dados da sua planilha:
                         </p>
+                        
+                        <div className="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className="flex items-center gap-2">
+                                <code className="bg-purple-900/30 text-purple-300 px-1 py-0.5 rounded font-mono">{"${req.hostNiche}"}</code>
+                                <span>Site Hospedeiro</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <code className="bg-purple-900/30 text-purple-300 px-1 py-0.5 rounded font-mono">{"${req.targetNiche}"}</code>
+                                <span>Site Alvo</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <code className="bg-purple-900/30 text-purple-300 px-1 py-0.5 rounded font-mono">{"${req.keyword}"}</code>
+                                <span>Palavra-chave</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <code className="bg-purple-900/30 text-purple-300 px-1 py-0.5 rounded font-mono">{"${req.anchorText}"}</code>
+                                <span>Texto Âncora</span>
+                            </div>
+                            <div className="flex items-center gap-2 col-span-full">
+                                <code className="bg-purple-900/30 text-purple-300 px-1 py-0.5 rounded font-mono">{"${req.targetLink}"}</code>
+                                <span>Link de Destino</span>
+                            </div>
+                        </div>
                     </div>
 
                     <textarea
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
-                        placeholder="Deixe em branco para usar o prompt padrão do sistema..."
+                        placeholder="Cole o seu prompt aqui..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 text-slate-200 focus:ring-2 focus:ring-purple-500/50 outline-none font-mono text-xs h-[400px] resize-y"
                     />
                 </div>
