@@ -35,35 +35,32 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
   const prompt = `
     Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
     
-    TAREFA: Escrever um artigo de Guest Post de alta qualidade, extremamente engajador e aprofundado.
+    TAREFA: Escrever um artigo de Guest Post de alta qualidade, engajador e aprofundado.
     IDIOMA: Português do Brasil (pt-BR).
     
     CONTEXTO E DESAFIO:
-    O objetivo principal deste artigo é criar uma ponte natural e orgânica entre dois universos distintos:
-    - O Site Hospedeiro (onde será postado), focado no Nicho: "${req.hostNiche}".
-    - O Site Alvo (para onde aponta o backlink), focado no Nicho: "${req.targetNiche}".
-    - A palavra-chave "${req.keyword}" deve ser utilizada de forma natural, SEM excessos ou protagonismo exagerado. O foco real é o elo entre os dois universos acima.
+    - O Site Hospedeiro (onde será postado) é do Nicho: "${req.hostNiche}".
+    - O Site Alvo (para onde aponta o backlink) é do Nicho: "${req.targetNiche}".
+    - A palavra-chave "${req.keyword}" deve ser utilizada de forma 100% natural e contextualizada.
     
     REQUISITOS:
-    1. **Título (Estilo Editorial)**: Crie um título orgânico, intrigante e contextual, como a manchete de uma revista especializada ou portal de notícias focado em "${req.hostNiche}".
-       - A base do título deve ser o universo do Site Hospedeiro ("${req.hostNiche}"), abordando um desafio real, curiosidade ou dor desse público.
-       - O universo do Site Alvo ("${req.targetNiche}") deve entrar no título apenas como o contexto inesperado, a solução sutil ou o fator de inovação que eleva a discussão, conectando os dois temas de forma fluida.
-       - PROIBIDO o uso de dois pontos (:) para dividir o título em dois blocos. Forme uma única frase coesa.
+    1. **Título (Pragmático e Direto)**: Crie um título focado EXCLUSIVAMENTE nas dores, curiosidades ou interesses do público do Nicho "${req.hostNiche}".
+       - PROIBIDO o uso de tom poético, filosófico ou abstrato (ex: "A Essência Inatingível", "A Magia de...").
+       - PROIBIDO o uso de dois pontos (:) ou traços (-) para dividir o título. Forme uma única frase coesa e direta.
+       - O nicho do Site Alvo ("${req.targetNiche}") NÃO DEVE aparecer no título em hipótese alguma.
        - PROIBIDO o uso de clichês de internet ("Descubra como...", "O Guia Definitivo...", "O Segredo de...", "Tudo o que você precisa").
-       - EXEMPLO BOM (Hospedeiro: Arquitetura / Alvo: Saúde Mental): "O impacto direto da iluminação natural e do design biofílico na estabilidade emocional e redução da ansiedade"
-       - EXEMPLO RUIM (Hospedeiro: Arquitetura / Alvo: Saúde Mental): "Arquitetura e Saúde Mental: Como projetar espaços que curam a ansiedade"
     
-    2. **O Equilíbrio Natural (50/50)**: Reserve estritamente a primeira metade do texto para explorar o universo, curiosidades e dores do público do Nicho "${req.hostNiche}". Só na segunda metade do texto faça uma transição lógica para apresentar o Nicho "${req.targetNiche}" como evolução do assunto. Todo o conteúdo deve ser uma conexão elegante e não forçada entre esses dois pólos.
+    2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" exposto como assunto alvo, e a palavra-chave, devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto.
     
-    3. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
+    3. **A Regra da Transição Orgânica (A Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
+       - A inserção deve ser sutil e passar quase despercebida. Crie um cenário prático no texto onde o Nicho "${req.targetNiche}" surge como uma solução ou contexto natural para encaixar a palavra-chave. Não jogue o link de paraquedas nem faça o texto girar em torno dele a partir daí.
+       - Formato do Link: Use INVARIAVELMENTE o formato Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}).
     
-    4. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points, parágrafos curtos para escaneabilidade e aplique gatilhos mentais e storytelling.
+    4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
     
-    5. **O Link (MUITO IMPORTANTE)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
+    5. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points, parágrafos curtos para escaneabilidade.
     
-    6. **Formato do Link**: Use o formato de link Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}). 
-    
-    7. **Conclusão e CTA**: Encerre de forma inspiradora e faça os temas conversarem uma última vez.
+    6. **Conclusão**: Encerre de forma útil focando no aprendizado principal para quem é do Nicho "${req.hostNiche}".
 
     SAÍDA EXIGIDA:
     Retorne APENAS o conteúdo completo do artigo em formato Markdown. Não inclua NENHUM texto introdutório do tipo "Aqui está o artigo" ou considerações finais.
