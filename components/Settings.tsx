@@ -146,7 +146,7 @@ Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretament
           // Try to fetch categories using the service
           const cats = await fetchWpCategories(editingSite);
           setWpTestStatus('success');
-          setWpTestMsg(`Conexão OK! \${cats.length} categorias encontradas.`);
+          setWpTestMsg(`Conexão OK! ${cats.length} categorias encontradas.`);
       } catch (e: any) {
           setWpTestStatus('error');
           setWpTestMsg('Falha: ' + (e.message || 'Erro desconhecido. Verifique URL/Credenciais/CORS.'));
@@ -244,9 +244,9 @@ Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretament
                     <h3 className="text-base font-bold text-white">Modo de Demonstração</h3>
                     <button 
                         onClick={() => setIsDemo(!isDemo)}
-                        className={\`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 \${isDemo ? 'bg-indigo-500' : 'bg-slate-700'}\`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${isDemo ? 'bg-indigo-500' : 'bg-slate-700'}`}
                     >
-                        <span className={\`inline-block h-4 w-4 transform rounded-full bg-white transition-transform \${isDemo ? 'translate-x-6' : 'translate-x-1'}\`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDemo ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                 </div>
                 <p className="text-sm text-slate-300">
@@ -255,7 +255,7 @@ Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretament
              </div>
         </div>
 
-        <div className={\`space-y-8 transition-opacity \${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}\`}>
+        <div className={`space-y-8 transition-opacity ${isDemo ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
             
             {/* GEMINI API KEYS SECTION */}
             <div className="flex items-start gap-4">
