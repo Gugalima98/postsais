@@ -41,29 +41,31 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     CONTEXTO E DESAFIO:
     - O Site Hospedeiro (onde será postado) é do Nicho: "${req.hostNiche}".
     - O Site Alvo (para onde aponta o backlink) é do Nicho: "${req.targetNiche}".
-    - A palavra-chave "${req.keyword}" deve ser utilizada de forma 100% natural e contextualizada.
+    - A palavra-chave "${req.keyword}" deve ser utilizada de forma 100% natural e contextualizada no meio do texto.
     
-    REQUISITOS:
-    1. **Título (Pragmático e Direto)**: Crie um título focado EXCLUSIVAMENTE nas dores, curiosidades ou interesses do público do Nicho "${req.hostNiche}".
-       - PROIBIDO o uso de tom poético, filosófico ou abstrato (ex: "A Essência Inatingível", "A Magia de...").
-       - PROIBIDO o uso de dois pontos (:) ou traços (-) para dividir o título. Forme uma única frase coesa e direta.
-       - O nicho do Site Alvo ("${req.targetNiche}") NÃO DEVE aparecer no título em hipótese alguma.
-       - PROIBIDO o uso de clichês de internet ("Descubra como...", "O Guia Definitivo...", "O Segredo de...", "Tudo o que você precisa").
+    REQUISITOS OBRIGATÓRIOS:
+    1. **REGRA DE OURO DO TÍTULO**: O título DEVE SER 100% focado no Nicho "${req.hostNiche}". 
+       - Trate como se você estivesse escrevendo exclusivamente para um blog de "${req.hostNiche}".
+       - É ESTRITAMENTE PROIBIDO mencionar, sugerir ou dar a entender qualquer coisa relacionada ao Nicho "${req.targetNiche}" no título.
+       - PROIBIDO o uso de palavras que remetam a "${req.targetNiche}".
+       - PROIBIDO tons poéticos, filosóficos ou clichês de internet ("A Arte de...", "O Segredo de...", "Descubra...").
+       - Seja direto, resolvendo uma dor ou curiosidade do público de "${req.hostNiche}".
+       - PROIBIDO o uso de dois pontos (:) ou traços (-) para dividir o título.
     
-    2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" exposto como assunto alvo, e a palavra-chave, devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto.
+    2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" e a palavra-chave devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto. A palavra-chave NUNCA deve ser o destaque do texto.
     
     3. **A Regra da Transição Orgânica (A Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
-       - A inserção deve ser sutil e passar quase despercebida. Crie um cenário prático no texto onde o Nicho "${req.targetNiche}" surge como uma solução ou contexto natural para encaixar a palavra-chave. Não jogue o link de paraquedas nem faça o texto girar em torno dele a partir daí.
+       - A inserção deve ser sutil e passar quase despercebida. Crie um cenário prático no texto onde o Nicho "${req.targetNiche}" surge como uma solução secundária ou contexto natural para encaixar a palavra-chave.
        - Formato do Link: Use INVARIAVELMENTE o formato Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}).
     
-    4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**. Desenvolva os tópicos extensivamente.
+    4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**.
     
-    5. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points, parágrafos curtos para escaneabilidade.
+    5. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points e parágrafos curtos.
     
-    6. **Conclusão**: Encerre de forma útil focando no aprendizado principal para quem é do Nicho "${req.hostNiche}".
+    6. **Conclusão**: Encerre focando totalmente no aprendizado para o Nicho "${req.hostNiche}". O site alvo não deve ser a conclusão da história.
 
     SAÍDA EXIGIDA:
-    Retorne APENAS o conteúdo completo do artigo em formato Markdown. Não inclua NENHUM texto introdutório do tipo "Aqui está o artigo" ou considerações finais.
+    Retorne APENAS o conteúdo completo do artigo em formato Markdown, começando com o # Título. Não inclua texto introdutório.
   `;
 
   let lastError: any = null;
