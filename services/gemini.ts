@@ -32,29 +32,57 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
       throw new Error("Nenhuma chave API do Gemini encontrada. Configure nas Configurações ou no arquivo .env");
   }
 
-  const prompt = `Você é um redator especialista em SEO Content e estrategista de Link Building (Copywriter Senior).
+  const prompt = `Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
 
-TAREFA: Escrever um artigo de Guest Post de altíssima qualidade, denso e engajador, pronto para publicação.
+TAREFA: Escrever um artigo de Guest Post de alta qualidade, engajador e aprofundado.
+
 IDIOMA: Português do Brasil (pt-BR).
 
-DADOS DO PROJETO:
-- Nicho do Site Hospedeiro (onde será postado): "${req.hostNiche}"
-- Nicho do Site Alvo (para onde o link aponta): "${req.targetNiche}"
-- Texto Âncora Exato: "${req.anchorText}"
-- Link Alvo: "${req.targetLink}"
-- Palavra-chave de Contexto: "${req.keyword}"
+CONTEXTO E DESAFIO:
 
-DIRETRIZES DE CONTEÚDO E TOM:
-1. FOCO TOTAL NO HOSPEDEIRO: O artigo pertence 100% ao universo do nicho "${req.hostNiche}". Escreva para a audiência deste nicho. O tom deve ser direto, jornalístico, prático e focado em resolver dores reais desse público. Evite introduções longas e clichês.
-2. TÍTULO MAGNÉTICO (H1): Crie um título altamente atraente e focado exclusivamente em "${req.hostNiche}". O título deve ser limpo (sem o uso de dois pontos ou traços) e não pode, sob nenhuma hipótese, fazer menção ou alusão ao nicho alvo ("${req.targetNiche}").
-3. DESENVOLVIMENTO PROFUNDO: Estruture o texto com H2 e H3. Em vez de focar em contagem de palavras, foque em densidade. Desenvolva pelo menos 4 a 5 seções aprofundadas sobre o tema principal. Explique o "como" e o "porquê" das coisas.
-4. A PONTE SEMÂNTICA (A INSERÇÃO DO LINK): O nicho alvo ("${req.targetNiche}") deve entrar no texto apenas como um exemplo prático, uma ferramenta ou uma citação rápida que apoia o raciocínio do nicho principal. A transição deve ser imperceptível. 
-5. REGRA DO TEXTO ÂNCORA: Insira o texto âncora exato ("${req.anchorText}") apenas UMA VEZ no texto. A frase que contém a âncora deve ter fluidez gramatical perfeita ("teste de leitura em voz alta"). Se a âncora for um termo de busca truncado, construa a frase ao redor para que faça sentido absoluto.
-6. FORMATO DO LINK: A âncora deve OBRIGATORIAMENTE ser formatada em Markdown desta exata maneira: [${req.anchorText}](${req.targetLink}). Nenhuma outra palavra deve entrar nos colchetes.
-7. CONCLUSÃO: O artigo deve terminar reforçando o aprendizado principal para o público de "${req.hostNiche}". Não mencione a solução do site alvo na conclusão.
+- O Site Hospedeiro (onde será postado) é do Nicho: "${req.hostNiche}".
+
+- O Site Alvo (para onde aponta o backlink) é do Nicho: "${req.targetNiche}".
+
+- A palavra-chave "${req.keyword}" deve ser utilizada de forma 100% natural e contextualizada no meio do texto.
+
+REQUISITOS OBRIGATÓRIOS:
+
+1. **REGRA DE OURO DO TÍTULO**: O título DEVE SER 100% focado no Nicho "${req.hostNiche}".
+
+- Trate como se você estivesse escrevendo exclusivamente para um blog de "${req.hostNiche}".
+
+- É ESTRITAMENTE PROIBIDO mencionar, sugerir ou dar a entender qualquer coisa relacionada ao Nicho "${req.targetNiche}" no título.
+
+- PROIBIDO o uso de palavras que remetam a "${req.targetNiche}".
+
+- PROIBIDO tons poéticos, filosóficos ou clichês de internet ("A Arte de...", "O Segredo de...", "Descubra...").
+
+- Seja direto, resolvendo uma dor ou curiosidade do público de "${req.hostNiche}".
+
+- PROIBIDO o uso de dois pontos (:) ou traços (-) para dividir o título.
+
+2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" e a palavra-chave devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto. A palavra-chave NUNCA deve ser o destaque do texto.
+
+3. **A Regra da Transição Orgânica (A Cimentação da Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
+
+- A inserção deve passar em um "teste de naturalidade falada". Se lido em voz alta, a frase da âncora não pode soar robótica, estrangeira ou forçada (Exemplo de erro: "na busca por uma residência, como um [quinta da baroneza aluguel]").
+
+- Se a palavra-chave ("${req.keyword}") for solta ou truncada (como termos de busca de Google ex: "comprar apartamento sp"), você DEVE construir uma frase de apoio ao redor dela para que ela faça sentido gramatical (ex: "quem decide [comprar apartamento sp] enfrenta os mesmos dilemas de ansiedade").
+
+- Introduza o Nicho alvo ("${req.targetNiche}") como um exemplo pontual e cotidiano da vida real de alguem do Nicho "${req.hostNiche}", e não como a solução mágica de todos os problemas. Apenas cite de passagem, coloque o link, e continue o raciocínio focado original.
+
+- Formato do Link: Use INVARIAVELMENTE o formato Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}).
+
+4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**.
+
+5. **Estrutura**: Use cabeçalhos Markdown adequados (H1, H2, H3), bullet points e parágrafos curtos.
+
+6. **Conclusão**: Encerre focando totalmente no aprendizado para o Nicho "${req.hostNiche}". O site alvo não deve ser a conclusão da história.
 
 SAÍDA EXIGIDA:
-Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretamente pelo # Título. Nenhuma palavra antes ou depois do artigo.
+
+Retorne APENAS o conteúdo completo do artigo em formato Markdown, começando com o # Título. Não inclua texto introdutório.
   `;
 
   let lastError: any = null;
