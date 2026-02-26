@@ -32,7 +32,25 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
       throw new Error("Nenhuma chave API do Gemini encontrada. Configure nas Configurações ou no arquivo .env");
   }
 
-  const prompt = `Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
+  // Lê o prompt customizado, se houver
+  let customPromptStr = "";
+  try {
+      customPromptStr = localStorage.getItem('guestpost_custom_prompt') || "";
+  } catch(e) {}
+
+  let prompt = "";
+
+  if (customPromptStr.trim().length > 0) {
+      // Se tiver prompt salvo, injeta as variáveis do request nele
+      prompt = customPromptStr
+        .replace(/\$\{req\.hostNiche\}/g, req.hostNiche)
+        .replace(/\$\{req\.targetNiche\}/g, req.targetNiche)
+        .replace(/\$\{req\.keyword\}/g, req.keyword)
+        .replace(/\$\{req\.anchorText\}/g, req.anchorText)
+        .replace(/\$\{req\.targetLink\}/g, req.targetLink);
+  } else {
+      // Prompt padrão
+      prompt = `Você é um redator especialista em SEO e estrategista de conteúdo (Copywriter Senior).
 
 TAREFA: Escrever um artigo de Guest Post de alta qualidade, engajador e aprofundado.
 
@@ -82,8 +100,8 @@ REQUISITOS OBRIGATÓRIOS:
 
 SAÍDA EXIGIDA:
 
-Retorne APENAS o conteúdo completo do artigo em formato Markdown, começando com o # Título. Não inclua texto introdutório.
-  `;
+Retorne APENAS o conteúdo completo do artigo em formato Markdown, começando com o # Título. Não inclua texto introdutório.`;
+  }
 
   let lastError: any = null;
 

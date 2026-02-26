@@ -26,6 +26,9 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
   const [wpTestStatus, setWpTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [wpTestMsg, setWpTestMsg] = useState('');
 
+  // Custom Prompt State
+  const [customPrompt, setCustomPrompt] = useState('');
+
   useEffect(() => {
     // Load Drive Client ID
     const storedClientId = localStorage.getItem('google_client_id');
@@ -50,6 +53,12 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
     } catch (e) {
         setWpSites([]);
     }
+
+    // Load Custom Prompt
+    const storedPrompt = localStorage.getItem('guestpost_custom_prompt');
+    if (storedPrompt) {
+        setCustomPrompt(storedPrompt);
+    }
   }, []);
 
   const handleSave = () => {
@@ -64,6 +73,9 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
 
     // Save WP Sites
     localStorage.setItem('guestpost_wp_sites', JSON.stringify(wpSites));
+
+    // Save Custom Prompt
+    localStorage.setItem('guestpost_custom_prompt', customPrompt);
 
     onSave();
   };
@@ -270,6 +282,35 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
                             ))}
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div className="h-px bg-slate-800 w-full"></div>
+
+            {/* CUSTOM PROMPT SECTION */}
+            <div className="flex items-start gap-4">
+                <div className="p-3 bg-slate-800 rounded-lg">
+                    <Edit className="w-6 h-6 text-purple-400" />
+                </div>
+                <div className="flex-1 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-white">Prompt Personalizado (Opcional)</h3>
+                        <p className="text-sm text-slate-400 mt-1">
+                            Se preenchido, este prompt substituirá o prompt padrão do sistema. 
+                            Use as variáveis: <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300">{"${req.hostNiche}"}</code>, 
+                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.targetNiche}"}</code>, 
+                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.keyword}"}</code>, 
+                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.anchorText}"}</code>, 
+                            <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-purple-300 ml-1">{"${req.targetLink}"}</code>.
+                        </p>
+                    </div>
+
+                    <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Deixe em branco para usar o prompt padrão do sistema..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 text-slate-200 focus:ring-2 focus:ring-purple-500/50 outline-none font-mono text-xs h-[400px] resize-y"
+                    />
                 </div>
             </div>
 
