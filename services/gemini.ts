@@ -54,8 +54,10 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
     
     2. **Foco do Conteúdo (Regra 80/20)**: O artigo deve ser 80% a 90% mergulhado no universo do Nicho "${req.hostNiche}". O Nicho "${req.targetNiche}" e a palavra-chave devem entrar apenas como um complemento útil, uma ferramenta ou consequência lógica dentro do contexto, sem quebrar o ritmo da leitura do Nicho principal ou mudar bruscamente de assunto. A palavra-chave NUNCA deve ser o destaque do texto.
     
-    3. **A Regra da Transição Orgânica (A Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
-       - A inserção deve ser sutil e passar quase despercebida. Crie um cenário prático no texto onde o Nicho "${req.targetNiche}" surge como uma solução secundária ou contexto natural para encaixar a palavra-chave.
+    3. **A Regra da Transição Orgânica (A Cimentação da Âncora)**: Você OBRIGATORIAMENTE deve incluir o texto âncora exato "${req.anchorText}" exatamente UMA VEZ.
+       - A inserção deve passar em um "teste de naturalidade falada". Se lido em voz alta, a frase da âncora não pode soar robótica, estrangeira ou forçada (Exemplo de erro: "na busca por uma residência, como um [quinta da baroneza aluguel]").
+       - Se a palavra-chave ("${req.keyword}") for solta ou truncada (como termos de busca de Google ex: "comprar apartamento sp"), você DEVE construir uma frase de apoio ao redor dela para que ela faça sentido gramatical (ex: "quem decide [comprar apartamento sp] enfrenta os mesmos dilemas de ansiedade").
+       - Introduza o Nicho alvo ("${req.targetNiche}") como um exemplo pontual e cotidiano da vida real de alguem do Nicho "${req.hostNiche}", e não como a solução mágica de todos os problemas. Apenas cite de passagem, coloque o link, e continue o raciocínio focado original.
        - Formato do Link: Use INVARIAVELMENTE o formato Markdown OBRIGATÓRIO: [${req.anchorText}](${req.targetLink}).
     
     4. **Tamanho do Artigo**: Escreva um artigo LONGO e aprofundado, com no **mínimo 1500 palavras**.
