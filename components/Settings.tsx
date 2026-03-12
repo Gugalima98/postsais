@@ -234,7 +234,7 @@ Retorne APENAS o conteúdo completo do artigo em Markdown. Nenhuma palavra antes
 
         const client = window.google.accounts.oauth2.initTokenClient({
             client_id: clientId.trim(),
-            scope: 'https://www.googleapis.com/auth/drive.file',
+            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
             callback: (response: any) => {
                 if (response.error) {
                     console.error(response);

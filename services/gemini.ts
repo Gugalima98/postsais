@@ -105,7 +105,25 @@ export const generateSeoArticleContent = async (req: import('../types').SeoArtic
   } catch(e) {}
 
   if (seoPromptStr.trim().length === 0) {
-      throw new Error("Nenhum prompt SEO configurado. Por favor, vá em Configurações e salve o seu prompt.");
+      seoPromptStr = `Você é um redator especialista em SEO Content. 
+
+TAREFA: Escrever um artigo focado em SEO de altíssima qualidade seguindo ESTRITAMENTE a estrutura fornecida.
+IDIOMA: Português do Brasil (pt-BR).
+
+DADOS DO PROJETO:
+- Palavra-chave principal (H1): "\${req.keyword}"
+
+ESTRUTURA OBRIGATÓRIA (Tópicos e Tags):
+\${req.topicsList}
+
+DIRETRIZES:
+1. O artigo DEVE seguir a hierarquia exata de tags fornecida acima (ex: H2, H3, H4). Você deve usar as marcações Markdown apropriadas: # para H1, ## para H2, ### para H3, etc.
+2. Desenvolva um texto denso e aprofundado para CADA tópico da estrutura.
+3. Não crie novos tópicos e não ignore nenhum tópico da estrutura obrigatória.
+4. Mantenha um tom direto e informativo.
+
+SAÍDA EXIGIDA:
+Retorne APENAS o conteúdo completo do artigo em Markdown. Nenhuma palavra antes ou depois do artigo.`;
   }
 
   const topicsList = req.topics.map(t => `- [${t.tag.toUpperCase()}] ${t.topic}`).join('\n');

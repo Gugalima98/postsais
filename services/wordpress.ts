@@ -81,9 +81,7 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
     
     const headers = {
         'Authorization': `Basic ${authString}`,
-        'Cache-Control': 'no-store, no-cache',
-        'Pragma': 'no-cache',
-        // Merge custom headers if any (like Content-Type for POST)
+        // Keep it minimal to avoid CORS preflight issues
         ...(options.headers as Record<string, string> || {})
     };
 
@@ -138,12 +136,12 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
         lastError = e;
     }
 
-    // --- STRATEGY 4: CORS Proxy Fallback (Deep Fallback) ---
+    // --- STRATEGY 4: CORS Proxy Fallback (Alternative Proxy Service) ---
     // Useful when firewall blocks /wp-json/ even via proxy, but allows query params
     try {
         const target = `${baseUrl}/?rest_route=/wp/v2${endpointPath}`;
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
-        return await tryStrategy("Strategy 4 (Proxy Fallback)", proxyUrl);
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+        return await tryStrategy("Strategy 4 (Proxy Fallback - corsproxy.io)", proxyUrl);
     } catch (e: any) {
         if (e.message.includes("Acesso Negado")) throw e;
         console.error("All strategies failed.");
@@ -157,7 +155,7 @@ const fetchWpWithFallback = async (site: WordpressSite, endpointPath: string, op
             2. Bloqueio de região (Geo-block) no servidor.
             3. Permalinks não configurados corretamente.
             
-            Solução: Tente instalar um plugin de "CORS" no WordPress ou whitelistar o domínio.`;
+            Solução: O navegador bloqueia a conexão (CORS). Certifique-se de que os Permalinks estão ativos (Configurações > Links Permanentes) e considere usar um plugin de CORS no site se persistir.`;
         }
         throw new Error(msg);
     }
