@@ -28,6 +28,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave }) => {
 
   // Custom Prompt State
   const [customPrompt, setCustomPrompt] = useState('');
+  const [seoPrompt, setSeoPrompt] = useState('');
 
   useEffect(() => {
     // Load Drive Client ID
@@ -84,6 +85,32 @@ DIRETRIZES DE CONTEÚDO E TOM:
 SAÍDA EXIGIDA:
 Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretamente pelo # Título. Nenhuma palavra antes ou depois do artigo.`);
     }
+
+    // Load SEO Prompt
+    const storedSeoPrompt = localStorage.getItem('guestpost_seo_prompt');
+    if (storedSeoPrompt) {
+        setSeoPrompt(storedSeoPrompt);
+    } else {
+        setSeoPrompt(`Você é um redator especialista em SEO Content. 
+
+TAREFA: Escrever um artigo focado em SEO de altíssima qualidade seguindo ESTRITAMENTE a estrutura fornecida.
+IDIOMA: Português do Brasil (pt-BR).
+
+DADOS DO PROJETO:
+- Palavra-chave principal (H1): "\${req.keyword}"
+
+ESTRUTURA OBRIGATÓRIA (Tópicos e Tags):
+\${req.topicsList}
+
+DIRETRIZES:
+1. O artigo DEVE seguir a hierarquia exata de tags fornecida acima (ex: H2, H3, H4). Você deve usar as marcações Markdown apropriadas: # para H1, ## para H2, ### para H3, etc.
+2. Desenvolva um texto denso e aprofundado para CADA tópico da estrutura.
+3. Não crie novos tópicos e não ignore nenhum tópico da estrutura obrigatória.
+4. Mantenha um tom direto e informativo.
+
+SAÍDA EXIGIDA:
+Retorne APENAS o conteúdo completo do artigo em Markdown. Nenhuma palavra antes ou depois do artigo.`);
+    }
   }, []);
 
   const handleSave = () => {
@@ -101,6 +128,9 @@ Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretament
 
     // Save Custom Prompt
     localStorage.setItem('guestpost_custom_prompt', customPrompt);
+    
+    // Save SEO Prompt
+    localStorage.setItem('guestpost_seo_prompt', seoPrompt);
 
     onSave();
   };
@@ -353,6 +383,41 @@ Retorne APENAS o conteúdo completo do artigo em Markdown, começando diretament
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         placeholder="Cole o seu prompt aqui..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 text-slate-200 focus:ring-2 focus:ring-purple-500/50 outline-none font-mono text-xs h-[400px] resize-y"
+                    />
+                </div>
+            </div>
+
+            <div className="h-px bg-slate-800 w-full"></div>
+
+            {/* CUSTOM SEO PROMPT SECTION */}
+            <div className="flex items-start gap-4">
+                <div className="p-3 bg-slate-800 rounded-lg">
+                    <Edit className="w-6 h-6 text-orange-400" />
+                </div>
+                <div className="flex-1 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-white">Prompt Criador de Artigo SEO</h3>
+                        <p className="text-sm text-slate-400 mt-1">
+                            Este prompt será usado na funcionalidade de "Criador SEO" a partir de planilha. Variáveis injetadas:
+                        </p>
+                        
+                        <div className="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className="flex items-center gap-2">
+                                <code className="bg-orange-900/30 text-orange-300 px-1 py-0.5 rounded font-mono">{"${req.keyword}"}</code>
+                                <span>Aba da Planilha (Palavra-chave)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <code className="bg-orange-900/30 text-orange-300 px-1 py-0.5 rounded font-mono">{"${req.topicsList}"}</code>
+                                <span>A Lista de Tópicos (A + B)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <textarea
+                        value={seoPrompt}
+                        onChange={(e) => setSeoPrompt(e.target.value)}
+                        placeholder="Cole o seu prompt de SEO aqui..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 text-slate-200 focus:ring-2 focus:ring-orange-500/50 outline-none font-mono text-xs h-[400px] resize-y"
                     />
                 </div>
             </div>

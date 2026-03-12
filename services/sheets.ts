@@ -50,3 +50,48 @@ export const updateSheetCell = async (accessToken: string, spreadsheetId: string
         throw new Error('Erro ao atualizar a planilha');
     }
 };
+
+export const fetchSeoSheetData = async (accessToken: string, spreadsheetId: string) => {
+    // 1. Get Spreadsheet details to find all sheets (tabs)
+    const infoResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        }
+    );
+
+    if (!infoResponse.ok) {
+        const err = await infoResponse.json();
+        throw new Error(err.error?.message || 'Erro ao ler informações da planilha');
+    }
+
+    const info = await infoResponse.json();
+    const sheets = info.sheets || [];
+    
+    // We get names of all sheets
+    const sheetTitles = sheets.map((s: any) => s.properties.title);
+    
+    // 2. Fetch the values for columns A and B from each sheet
+    // We can use batchGet to fetch everything in one request
+    const ranges = sheetTitles.map((title: string) => `${encodeURIComponent(title)}!A:B`);
+    const rangesQuery = ranges.map((r: string) => `ranges=${r}`).join('&');
+    
+    const batchResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${rangesQuery}`,
+        {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        }
+    );
+
+    if (!batchResponse.ok) {
+        const err = await batchResponse.json();
+        throw new Error(err.error?.message || 'Erro ao ler abas da planilha');
+    }
+
+    const batchData = await batchResponse.json();
+    
+    return {
+        sheetTitles,
+        valueRanges: batchData.valueRanges || []
+    };
+};

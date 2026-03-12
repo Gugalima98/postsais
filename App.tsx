@@ -7,7 +7,8 @@ import SheetImportModal from './components/SheetImportModal';
 import BatchStatus from './components/BatchStatus';
 import WordpressPublisher from './components/WordpressPublisher';
 import BulkPostManager from './components/BulkPostManager'; // Imported
-import { generateGuestPostContent } from './services/gemini';
+import SeoArticleManager from './components/SeoArticleManager';
+import { generateGuestPostContent, generateSeoArticleContent } from './services/gemini';
 import { uploadToDrive, convertMarkdownToHtml } from './services/drive';
 import { updateSheetCell } from './services/sheets';
 import { AppMode, GeneratedArticle, GuestPostRequest, QueueItem, BatchProgress } from './types';
@@ -132,9 +133,14 @@ const App: React.FC = () => {
                 content = `# ${item.request.keyword} (Demo)\n\nConteúdo gerado automaticamente...`;
                 title = item.request.keyword;
             } else {
-                content = await generateGuestPostContent(item.request);
-                const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/^(.+)$/m);
-                title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : item.request.keyword;
+                if (item.type === 'seo_article') {
+                    content = await generateSeoArticleContent(item.request);
+                    title = item.request.keyword;
+                } else {
+                    content = await generateGuestPostContent(item.request);
+                    const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/^(.+)$/m);
+                    title = titleMatch ? titleMatch[1].replace(/\*\*/g, '') : item.request.keyword;
+                }
             }
 
             addLog(`Artigo gerado. Salvando...`);
@@ -153,8 +159,12 @@ const App: React.FC = () => {
                 driveUrl = driveResult.webViewLink;
                 driveId = driveResult.id;
                 
-                addLog(`Atualizando planilha...`);
-                await updateSheetCell(batchToken, item.sheetId, item.rowIndex, driveUrl);
+                if (item.type !== 'seo_article') {
+                    addLog(`Atualizando planilha...`);
+                    await updateSheetCell(batchToken, item.sheetId, item.rowIndex, driveUrl);
+                } else {
+                    addLog(`Salvo no Drive! (Aba: ${item.tabName})`);
+                }
             } else {
                 throw new Error("Token de autenticação perdido.");
             }
@@ -259,6 +269,21 @@ const App: React.FC = () => {
     });
 
     setNotification({ msg: 'Processamento iniciado em segundo plano!', type: 'success' });
+  };
+
+  const handleSeoBatchStart = (queueItems: QueueItem[], token: string) => {
+    setBatchToken(token); 
+    setQueue(queueItems);
+    setBatchProgress({
+        isActive: true,
+        total: queueItems.length,
+        processed: 0,
+        currentKeyword: '',
+        logs: [`Importado ${queueItems.length} abas para SEO. Iniciando fila...`]
+    });
+
+    setNotification({ msg: 'Geração SEO iniciada em segundo plano!', type: 'success' });
+    setMode(AppMode.HISTORY); // Redirect to history to see them pop up
   };
 
 
@@ -370,6 +395,14 @@ const App: React.FC = () => {
         />;
     }
 
+    if (mode === AppMode.SEO_ARTICLE) {
+        return <SeoArticleManager 
+            onStartBatch={handleSeoBatchStart}
+            isDemoMode={isDemoMode}
+            onGoToSettings={() => setMode(AppMode.SETTINGS)}
+        />;
+    }
+
     if (mode === AppMode.SINGLE) {
         if (activeArticle) {
             return (
@@ -459,7 +492,7 @@ const App: React.FC = () => {
             setActiveArticle(null);
             setBulkImportData(null); // Clear bulk data on nav change
         }} 
-        isFullWidth={mode === AppMode.SINGLE && activeArticle !== null || mode === AppMode.WORDPRESS || mode === AppMode.BULK_PUBLISH}
+        isFullWidth={mode === AppMode.SINGLE && activeArticle !== null || mode === AppMode.WORDPRESS || mode === AppMode.BULK_PUBLISH || mode === AppMode.SEO_ARTICLE}
     >
         {notification && (
             <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>

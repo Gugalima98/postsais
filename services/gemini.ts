@@ -90,3 +90,60 @@ export const generateGuestPostContent = async (req: GuestPostRequest): Promise<s
   const finalErrorMsg = lastError?.message || lastError?.toString() || "Erro desconhecido.";
   throw new Error(`Tentou gerar em ${apiKeys.length} chaves diferentes e todas falharam (Cotão excedido ou erro). Último erro: ${finalErrorMsg}`);
 };
+
+export const generateSeoArticleContent = async (req: import('../types').SeoArticleRequest): Promise<string> => {
+  const apiKeys = getAvailableApiKeys();
+  
+  if (apiKeys.length === 0) {
+      throw new Error("Nenhuma chave API do Gemini encontrada. Configure nas Configurações ou no arquivo .env");
+  }
+
+  // Lê o prompt customizado de SEO
+  let seoPromptStr = "";
+  try {
+      seoPromptStr = localStorage.getItem('guestpost_seo_prompt') || "";
+  } catch(e) {}
+
+  if (seoPromptStr.trim().length === 0) {
+      throw new Error("Nenhum prompt SEO configurado. Por favor, vá em Configurações e salve o seu prompt.");
+  }
+
+  const topicsList = req.topics.map(t => `- [${t.tag.toUpperCase()}] ${t.topic}`).join('\n');
+
+  // Injeta as variáveis do request nele
+  const prompt = seoPromptStr
+    .replace(/\$\{req\.keyword\}/g, req.keyword)
+    .replace(/\$\{req\.topicsList\}/g, topicsList);
+
+  let lastError: any = null;
+
+  for (const apiKey of apiKeys) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                maxOutputTokens: 8192, 
+            }
+        });
+
+        if (!response.text) {
+            throw new Error("API retornou resposta vazia.");
+        }
+
+        return response.text;
+
+      } catch (error: any) {
+        const msg = error.message || error.toString();
+        console.warn(`Falha rápida com a chave API (final ...${apiKey.slice(-4)}): ${msg}`);
+        lastError = error;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        continue;
+      }
+  }
+
+  const finalErrorMsg = lastError?.message || lastError?.toString() || "Erro desconhecido.";
+  throw new Error(`Tentou gerar SEO em ${apiKeys.length} chaves diferentes e todas falharam. Último erro: ${finalErrorMsg}`);
+};

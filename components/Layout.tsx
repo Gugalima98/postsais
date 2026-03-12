@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppMode } from '../types';
-import { PenTool, History, Settings, Zap, Menu, X, Globe, Layers } from 'lucide-react';
+import { PenTool, History, Settings, Zap, Menu, X, Globe, Layers, FileSpreadsheet } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -65,6 +65,18 @@ const Layout: React.FC<LayoutProps> = ({ children, currentMode, setMode, isFullW
           >
             <PenTool className="w-5 h-5" />
             <span className="font-medium">Criar Post</span>
+          </button>
+
+          <button
+            onClick={() => handleModeChange(AppMode.SEO_ARTICLE)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+              currentMode === AppMode.SEO_ARTICLE
+                ? 'bg-orange-600/10 text-orange-400 border border-orange-600/20'
+                : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span className="font-medium">Criador SEO</span>
           </button>
 
           <button
